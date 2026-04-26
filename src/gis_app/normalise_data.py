@@ -4,11 +4,14 @@ import pandas as pd
 ROOT_DIR = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT_DIR / "data" / "initial_coords.csv"
 
-def load_coords(csv_path: Path)
-# Import the coursework data from the CSV file.
-# Use skipinitialspace and strip column names to handle spaces in the CSV header.
-df = pd.read_csv(csv_path, skipinitialspace=True)
-df.columns = df.columns.str.strip()
+def load_coords(csv_path: Path):
+    # Import the coursework data from the CSV file.
+    # Use skipinitialspace and strip column names to handle spaces in the CSV header.
+    df = pd.read_csv(csv_path, skipinitialspace=True)
+    df.columns = df.columns.str.strip()
+    return df
+
+df = load_coords(CSV_PATH)
 
 min_x = int(df["x_coord"].min())
 min_y = int(df["y_coord"].min())

@@ -9,4 +9,9 @@ wheels/
 # Virtual environments
 .venv
 .venv/
+
+# Environment variables
 .env
+
+# Poetry lock file
+uv.lock
