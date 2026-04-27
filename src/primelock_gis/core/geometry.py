@@ -1,3 +1,4 @@
+# Low level geometry utilities for GIS application
 from dataclasses import dataclass
 import math
 

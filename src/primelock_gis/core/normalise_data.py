@@ -1,5 +1,6 @@
+# Normaisation of the initial coordinates
 from pathlib import Path
-import pandas as pd
+import pandas as pd # Might later switch to Python built-in csv module, but pandas is more convenient for now.
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 CSV_PATH = ROOT_DIR / "data" / "initial_coords.csv"
