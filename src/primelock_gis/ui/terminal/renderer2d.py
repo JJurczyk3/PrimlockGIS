@@ -7,6 +7,7 @@ from primelock_gis.core.rendering.scene import (
     DrawablePolyline,
     DrawablePolygon,
     DrawableText,
+    Scene,
 )
 from primelock_gis.ui.terminal.canvas import TerminalCanvas
 from primelock_gis.ui.terminal.capabilities import TerminalCapabilities
@@ -46,6 +47,10 @@ class TerminalRenderer2D(RendererBase):
     def draw_text(self, drawable: DrawableText) -> None:
         cell_x, cell_y = self._world_point_to_cell(drawable.position)
         self.canvas.write_text(cell_x, cell_y, drawable.text)
+
+    # Render scene
+    def render_scene(self, scene: Scene) -> None:
+        super().render_scene(scene)
 
     # Output as a string on a screen.
     def to_string(self) -> str:

@@ -1,19 +1,20 @@
 ## System objectives and key data structures: (Core data structures)
-- grid model
-- refined grid model
-- convex-hull TIN
-- grid-based polyline contours
-- grid-based smoothed contours
-- TIN-based polyline contours
-- TIN-based smoothed contours
-- topological nodes, intermediate points, arcs, polygons
-- polygon area/perimeter query
-- arc topology table
-- polygon topology table
+canvas.py
+    stores terminal cells
+
+renderer2d.py
+    draws scene objects into canvas
+
+viewport.py
+    stores world bounds and view size
+
+app.py
+    checks terminal size and rebuilds/redraws when needed
+
 
 ## Project status (What the system must do)
-- [ ] Data loading
-- [ ] Basic geometry utilities
+- [X] Data loading
+- [X] Basic geometry utilities
 - [ ] Grid interpolation
 - [ ] Grid densification
 - [ ] Convex hull

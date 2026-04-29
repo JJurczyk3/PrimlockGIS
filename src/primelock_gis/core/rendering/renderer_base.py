@@ -34,7 +34,6 @@ class RendererBase:
 
     def render_scene(self, scene: Scene) -> None:
         """Render a full scene in GIS display order."""
-
         self.clear()
 
         for polygon in scene.polygons:
