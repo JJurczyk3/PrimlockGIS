@@ -1,35 +1,43 @@
-"""Scene object setup for Primlock GIS.
+"""Scene object setup for Primelock GIS.
 
 This module defines drawable objects for rendering GIS features.
-describes WHAT should be drawn
+It describes WHAT should be drawn, not HOW it should be drawn.
 """
 
 from dataclasses import dataclass, field
+
+from primelock_gis.core.geometry import Point
 from .symbology import PointStyle, PolylineStyle, FillStyle, TextStyle
 
 
 @dataclass
 class DrawablePolygon:
-    points: list[tuple[float, float]]
-    style: "FillStyle"
+    points: list[Point]
+    style: FillStyle
+    layer: str = "default"
+    visible: bool = True
 
 @dataclass
 class DrawablePolyline:
-    points: list[tuple[float, float]]
-    style: "PolylineStyle"
+    points: list[Point]
+    style: PolylineStyle
+    layer: str = "default"
+    visible: bool = True
 
 @dataclass
 class DrawablePoint:
-    x: float
-    y: float
-    style: "PointStyle"
+    position: Point
+    style: PointStyle
+    layer: str = "default"
+    visible: bool = True
 
 @dataclass
 class DrawableText:
-    x: float
-    y: float
+    position: Point
     text: str
-    style: "TextStyle"
+    style: TextStyle
+    layer: str = "default"
+    visible: bool = True
 
 @dataclass
 class Scene:
