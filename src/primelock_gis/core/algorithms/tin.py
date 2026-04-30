@@ -4,4 +4,4 @@
 
 """TIN algorithms"""
 def TIN():
-    a
+    sa

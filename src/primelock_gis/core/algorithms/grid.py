@@ -1,7 +1,8 @@
 """Algorithms for handling grid models."""
 from primelock_gis.core.models.vector import SpecialPoint
-from primelock_gis.core.geometry import Box, Point
+from primelock_gis.core.geometry import Box
 from primelock_gis.core.models.grid import GridModel
+from .interpolation import idw_value
 
 
 def get_point_bounds(points: list[SpecialPoint]) -> Box:
@@ -37,7 +38,7 @@ def create_empty_grid_model(
         for col in range(cols):
             grid_row.append(0.0)
 
-    node_values.append(grid_row)
+        node_values.append(grid_row)
 
     return GridModel(
         x_min=bounds.min_x,
@@ -48,3 +49,17 @@ def create_empty_grid_model(
         y_divisions=y_divisions,
         node_values=node_values,
     )
+
+
+def create_grid_model_idw(x_divisions: int, y_divisions: int, points: list[SpecialPoint]) -> GridModel:
+    """Create a grid model using inverse-distance-square interpolation."""
+    grid_model = create_empty_grid_model(x_divisions, y_divisions, points)
+
+    for row in range(y_divisions + 1):
+        for col in range(x_divisions + 1):
+            x = grid_model.node_x(col)
+            y = grid_model.node_y(row)
+            z = idw_value(points, x, y)
+
+            grid_model.node_value(row, col) = z
+    return grid_model

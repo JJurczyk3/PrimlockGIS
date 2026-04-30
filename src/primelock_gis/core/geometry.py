@@ -1,6 +1,5 @@
 # Low level geometry utilities for GIS application
 from dataclasses import dataclass
-import math
 
 EPS = 1e-9
 
@@ -32,7 +31,9 @@ def almost_equal(a, b, eps=EPS):
 
 # Return the distance between points p and q
 def distance(p, q):
-    return math.hypot(p.x - q.x, p.y - q.y)
+    dx = p.x - q.x
+    dy = p.y - q.y
+    return (dx * dx + dy * dy) ** 0.5
 
 
 # Return the cross product of vectors AB and AC
@@ -205,8 +206,11 @@ def point_in_polygon(p, polygon, eps=EPS):
     return inside
 
 
-def circumcircle_contains(a, b, c, p):
-    pass
+def distance_squared(a, b) -> float:
+    dx = a.x - b.x
+    dy = a.y - b.y
+    return dx * dx + dy * dy
 
-def distance_squared(a, b):
+
+def circumcircle_contains(a, b, c, p):
     pass
