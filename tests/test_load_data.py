@@ -4,7 +4,7 @@ from primelock_gis.core.load_data import (
     load_normalised_sample_points,
     normalise_sample_points,
 )
-from primelock_gis.core.model import SpecialPoint
+from primelock_gis.core.models.vector import SpecialPoint
 
 
 def test_load_sample_points():

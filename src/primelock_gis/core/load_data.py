@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import polars as pl
-from primelock_gis.core.model import SpecialPoint
+from primelock_gis.core.models.vector import SpecialPoint
 
 
 def load_sample_points(file_path: Path) -> list[SpecialPoint]:

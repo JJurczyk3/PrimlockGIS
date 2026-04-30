@@ -1,6 +1,6 @@
 """Create drawable objects from GIS data."""
 
-from primelock_gis.core.model import SpecialPoint
+from primelock_gis.core.models.vector import SpecialPoint
 from primelock_gis.core.rendering.scene import DrawablePoint, Scene
 from primelock_gis.core.geometry import Point
 from primelock_gis.core.rendering.symbology import PointStyle

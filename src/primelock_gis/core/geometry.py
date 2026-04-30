@@ -203,3 +203,10 @@ def point_in_polygon(p, polygon, eps=EPS):
                 inside = not inside
 
     return inside
+
+
+def circumcircle_contains(a, b, c, p):
+    pass
+
+def distance_squared(a, b):
+    pass
