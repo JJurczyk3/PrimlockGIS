@@ -21,14 +21,13 @@ def points_to_scene(points: list[SpecialPoint], style: PointStyle | None = None)
         scene.points.append(drawable)
     return scene
 
+def grid_to_scene():
+    pass
 
 def contours_to_scene():
     pass
 
 def tin_to_scene():
-    pass
-
-def grid_to_scene():
     pass
 
 def topology_to_scene():

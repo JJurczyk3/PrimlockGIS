@@ -56,7 +56,6 @@ class TerminalRenderer2D(RendererBase):
     def to_string(self) -> str:
         return self.canvas.to_string()
     
-    """ Helpers """
     # Convert world coordinates of a single point to screen coordinates.
     def _world_point_to_cell(self, point: Point) -> tuple[int, int]:
         view_point = self.viewport.world_to_view(point.x, point.y)

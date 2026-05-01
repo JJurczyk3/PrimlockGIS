@@ -1,4 +1,4 @@
-# Low level geometry utilities for GIS application
+"""Shared geometry utilities."""
 from dataclasses import dataclass
 
 EPS = 1e-9
@@ -206,7 +206,7 @@ def point_in_polygon(p, polygon, eps=EPS):
     return inside
 
 
-def distance_squared(a, b) -> float:
+def distance_squared(a: Point, b: Point) -> float:
     dx = a.x - b.x
     dy = a.y - b.y
     return dx * dx + dy * dy

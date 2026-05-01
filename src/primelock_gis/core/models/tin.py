@@ -1,5 +1,12 @@
+"""TIN data models for Primelock GIS."""
+
+from dataclasses import dataclass
+
+
 @dataclass
 class TinVertex:
+    """A vertex used by future TIN workflows."""
+
     id: int
     x: float
     y: float

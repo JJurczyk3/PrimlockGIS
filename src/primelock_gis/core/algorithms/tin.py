@@ -1,7 +1,6 @@
-# convex hull and TIN generation
+"""TIN algorithms for Primelock GIS."""
 
 
-
-"""TIN algorithms"""
-def TIN():
-    sa
+def build_tin(*_args, **_kwargs):
+    """Placeholder for future TIN generation."""
+    raise NotImplementedError("TIN generation is not implemented yet.")

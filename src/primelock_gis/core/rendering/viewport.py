@@ -11,6 +11,8 @@ class Viewport:
     view_width: int
     view_height: int
 
+    def __post_init__(self) -> None:
+        self._validate()
 
     # Validate viewport parameters
     def _validate(self) -> None:
