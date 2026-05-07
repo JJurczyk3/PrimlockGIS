@@ -135,7 +135,6 @@ def segment_intersects(a, b, c, d, eps=EPS):
         x=a.x + t * r_x,
         y=a.y + t * r_y,
     )
-
     if (
         distance(intersection_point, a) <= eps
         or distance(intersection_point, b) <= eps
@@ -160,7 +159,6 @@ def polygon_signed_area(points: list[Point]) -> float:
 
         total += current.x * next_point.y
         total -= current.y * next_point.x
-
     return total / 2
 
 
@@ -212,5 +210,27 @@ def distance_squared(a: Point, b: Point) -> float:
     return dx * dx + dy * dy
 
 
-def circumcircle_contains(a, b, c, p):
-    pass
+# Return True if point p lies inside the circumcircle of triangle abc.
+def circumcircle_contains(a: Point, b: Point, c: Point, p: Point, eps: float = EPS) -> bool:
+    ax = a.x - p.x
+    ay = a.y - p.y
+    bx = b.x - p.x
+    by = b.y - p.y
+    cx = c.x - p.x
+    cy = c.y - p.y
+
+    determinant = (
+        (ax * ax + ay * ay) * (bx * cy - by * cx)
+        - (bx * bx + by * by) * (ax * cy - ay * cx)
+        + (cx * cx + cy * cy) * (ax * by - ay * bx)
+    )
+
+    triangle_orientation = orientation(a, b, c, eps)
+
+    if triangle_orientation > 0:
+        return determinant > eps
+
+    if triangle_orientation < 0:
+        return determinant < -eps
+
+    return False

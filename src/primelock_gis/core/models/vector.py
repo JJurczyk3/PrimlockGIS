@@ -1,4 +1,4 @@
-# Data classes for GIS application model
+"""Standard GIS application structures"""
 from dataclasses import dataclass, field
 
 @dataclass
