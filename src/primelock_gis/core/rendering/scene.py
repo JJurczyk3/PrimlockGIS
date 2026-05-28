@@ -1,5 +1,4 @@
-"""Scene object setup for Primelock GIS.
-
+"""
 This module defines drawable objects for rendering GIS features.
 It describes WHAT should be drawn, not HOW it should be drawn.
 """

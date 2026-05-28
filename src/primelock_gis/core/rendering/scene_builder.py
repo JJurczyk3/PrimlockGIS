@@ -3,8 +3,9 @@
 from primelock_gis.core.models.vector import SpecialPoint
 from primelock_gis.core.rendering.scene import DrawablePoint, DrawablePolyline, Scene
 from primelock_gis.core.geometry import Point
-from primelock_gis.core.rendering.symbology import PointStyle, PolylineStyle
+from primelock_gis.core.rendering.symbology import PointStyle, PolylineStyle, FillStyle
 from primelock_gis.core.models.grid import GridModel
+from primelock_gis.core.models.tin import TinModel
 
 
 def points_to_scene(points: list[SpecialPoint], style: PointStyle | None = None) -> Scene:
@@ -58,10 +59,47 @@ def grid_to_scene(grid_model: GridModel, style=None) -> Scene:
     return scene
 
 
-def contours_to_scene():
-    pass
+def tin_to_scene(tin_model: TinModel, style: PolylineStyle | None = None) -> Scene:
+    """Convert TIN model to display scene."""
+    if style is None:
+        style = PolylineStyle(char="*")
 
-def tin_to_scene():
+    scene = Scene()
+    vertex_by_id = {}
+
+    for vertex in tin_model.vertices:
+        vertex_by_id[vertex.id] = vertex
+
+    drawn_edges = set()
+
+    for triangle in tin_model.triangles:
+        a_id, b_id, c_id = triangle.vertex_ids
+
+        edges = [
+            tuple(sorted((a_id, b_id))),
+            tuple(sorted((b_id, c_id))),
+            tuple(sorted((c_id, a_id))),
+        ]
+        for edge in edges:
+            if edge in drawn_edges:
+                continue
+            drawn_edges.add(edge)
+
+            start_vertex = vertex_by_id[edge[0]]
+            end_vertex = vertex_by_id[edge[1]]
+
+            drawable = DrawablePolyline(
+                points=[
+                    Point(start_vertex.x, start_vertex.y),
+                    Point(end_vertex.x, end_vertex.y),
+                ],
+                style=style,
+            )
+            scene.polylines.append(drawable)
+    return scene
+
+
+def contours_to_scene():
     pass
 
 def topology_to_scene():

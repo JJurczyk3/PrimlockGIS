@@ -32,7 +32,6 @@ class Polygon:
     id: int
     arc_ids: list[int]
     outer_polygon: int = -1
-    inner_polygons: list[int] = field(default_factory=list)
 
 @dataclass
 class TextLabel:

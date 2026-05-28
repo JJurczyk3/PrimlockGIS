@@ -1,4 +1,4 @@
-"""A 2D renderer for the terminal."""
+""" A 2D renderer for the terminal. """
 
 from primelock_gis.core.rendering.renderer_base import RendererBase
 from primelock_gis.core.rendering.viewport import Viewport

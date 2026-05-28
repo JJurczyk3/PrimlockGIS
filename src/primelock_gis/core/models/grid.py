@@ -37,7 +37,10 @@ class GridModel:
     
     def node_y(self, row: int) -> float:
         return self.y_min + row * self.dy
-
+    
+    def node_value(self, row: int, col: int) -> float:
+        return self.node_values[row][col]
+    
 
     def grid_intersection(self, row: int, col: int) -> tuple[float, float, float]:
         """Return x, y, z at the selected grid row and column."""

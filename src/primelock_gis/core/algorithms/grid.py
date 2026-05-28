@@ -122,7 +122,7 @@ def densify_grid_model(grid: GridModel, x_splits: int, y_splits: int) -> GridMod
             v = (new_row - old_row * y_splits) / y_splits
 
             z = _bilinear_interpolation_at_cell(grid, old_row, old_col, u, v)
-            grid.row.append(z)
+            grid_row.append(z)
         node_values.append(grid_row)
 
     return GridModel(

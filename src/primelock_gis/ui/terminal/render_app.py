@@ -1,4 +1,4 @@
-""" Terminal application loop """
+""" Terminal application loop. """
 import shutil
 from .canvas import TerminalCanvas
 from .capabilities import TerminalCapabilities
@@ -7,7 +7,7 @@ from primelock_gis.core.rendering.scene import Scene
 from primelock_gis.core.rendering.viewport import Viewport
 
 
-class TerminalApp:
+class TerminalRenderApp:
     def __init__(self, scene, viewport, capabilities):
         self.scene = scene
         self.viewport = viewport
