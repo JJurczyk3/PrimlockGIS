@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import shutil
+from queue import Queue
 
 from primelock_gis.app.project_state import ProjectState
 from primelock_gis.core.algorithms.grid import create_grid_model_idw
@@ -10,6 +11,7 @@ from primelock_gis.core.load_data import load_normalised_sample_points
 from primelock_gis.core.rendering.viewport_builder import initial_viewport_from_points
 from primelock_gis.ui.terminal.capabilities import detect_terminal_capabilities
 from primelock_gis.ui.terminal.interactive_app import InteractiveTerminalApp
+from primelock_gis.ui.terminal.admin import CommandRequest, start_command_server
 
 
 def run_terminal_beta(
@@ -26,7 +28,7 @@ def run_terminal_beta(
     idw_grid = create_grid_model_idw(
         points,
         x_divisions=grid_x_division,
-        y_divisions=grid_x_division,
+        y_divisions=grid_y_division,
     )
 
     tin = build_tin_from_points(points)
@@ -50,10 +52,18 @@ def run_terminal_beta(
 
     capabilities = detect_terminal_capabilities()
 
+    command_queue: Queue[CommandRequest] = Queue()
+    server = start_command_server(command_queue)
+
     app = InteractiveTerminalApp(
         project_state=project_state,
         viewport=viewport,
         capabilities=capabilities,
+        command_queue=command_queue,
     )
 
-    app.run()
+    try:
+        app.run()
+    finally:
+        server.shutdown()
+        server.server_close()

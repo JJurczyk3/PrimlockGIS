@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import shutil
+from queue import Empty, Queue
 
 from primelock_gis.app.project_state import ProjectState
 from primelock_gis.core.rendering.scene import Scene
@@ -17,6 +18,7 @@ from primelock_gis.ui.terminal.input import read_key_event
 from primelock_gis.ui.terminal.render_app import TerminalRenderApp
 from primelock_gis.ui.terminal.screen import clear_screen, draw_frame, draw_status_bar
 from primelock_gis.ui.terminal.session import TerminalSession
+from primelock_gis.ui.terminal.admin import CommandRequest
 
 
 @dataclass
@@ -36,11 +38,13 @@ class InteractiveTerminalApp:
         project_state: ProjectState,
         viewport: Viewport,
         capabilities: TerminalCapabilities,
+        command_queue: Queue[CommandRequest] | None = None,
     ) -> None:
         self.project_state = project_state
         self.viewport = viewport
         self.initial_viewport = viewport
         self.capabilities = capabilities
+        self.command_queue = command_queue
         self.state = InteractiveState()
 
     def build_scene(self) -> Scene:
@@ -138,8 +142,9 @@ class InteractiveTerminalApp:
             clear_screen()
 
             while self.state.running:
-                status_row = self.resize_if_needed()
+                self.process_admin_commands()
 
+                status_row = self.resize_if_needed()
                 frame = self.render_frame()
 
                 clear_screen()
@@ -174,3 +179,123 @@ class InteractiveTerminalApp:
             return f"{layer_name} visible"
 
         return f"{layer_name} hidden"
+    
+    def process_admin_commands(self) -> None:
+        """Process all queued admin commands."""
+        if self.command_queue is None:
+            return
+        
+        while True:
+            try:
+                request = self.command_queue.get_nowait()
+            except Empty:
+                return
+            
+            response = self.handle_admin_command(request.text)
+            request.reply_queue.put(response)
+
+    def handle_admin_command(self, command: str) -> str:
+        """Handle one text command from the admin terminal."""
+        parts = command.strip().lower().split()
+
+        if not parts:
+            return "ERROR: empty command"
+        
+        if parts == ["show", "grid"]:
+            self.state.show_grid = True
+            self.state.status_message = "Grid visible"
+            return f"OK: {self.state.status_message}"
+        
+        if parts == ["hide", "grid"]:
+            self.state.show_grid = False
+            self.state.status_message = "Grid hidden"
+            return f"OK: {self.state.status_message}"
+        
+        if parts == ["toggle", "grid"]:
+            self.state.show_grid = not self.state.show_grid
+            self.state.status_message = self._visibility_status(
+                "Grid",
+                self.state.show_grid,
+            )
+            return f"OK: {self.state.status_message}"
+        
+        if parts == ["show", "tin"]:
+            self.state.show_tin = True
+            self.state.status_message = "TIN visible"
+            return f"OK: {self.state.status_message}"
+
+        if parts == ["hide", "tin"]:
+            self.state.show_tin = False
+            self.state.status_message = "TIN hidden"
+            return f"OK: {self.state.status_message}"
+
+        if parts == ["toggle", "tin"]:
+            self.state.show_tin = not self.state.show_tin
+            self.state.status_message = self._visibility_status(
+                "TIN",
+                self.state.show_tin,
+            )
+            return f"OK: {self.state.status_message}"
+        
+        if parts == ["show", "points"]:
+            self.state.show_points = True
+            self.state.status_message = "Points visible"
+            return f"OK: {self.state.status_message}"
+
+        if parts == ["hide", "points"]:
+            self.state.show_points = False
+            self.state.status_message = "Points hidden"
+            return f"OK: {self.state.status_message}"
+
+        if parts == ["toggle", "points"]:
+            self.state.show_points = not self.state.show_points
+            self.state.status_message = self._visibility_status(
+                "Points",
+                self.state.show_points,
+            )
+            return f"OK: {self.state.status_message}"
+
+        if parts == ["reset"]:
+            self.viewport = self.initial_viewport
+            self.state.status_message = "Viewport reset"
+            return f"OK: {self.state.status_message}"
+        
+        if parts == ["summary"]:
+            return self.model_summary()
+        
+        if len(parts) == 4 and parts[:2] == ["query", "grid"]:
+            try:
+                row = int(parts[2])
+                col = int(parts[3])
+            except ValueError:
+                return "ERROR: row and col must be integers"
+            
+            try:
+                x, y, z = self.project_state.idw_grid.grid_intersection(row, col)
+            except ValueError as error:
+                return f"ERROR: {error}"
+            
+            self.state.status_message = (
+                f"Grid row={row}, col={col}, z={z:.3f}"
+            )
+            return (
+                f"OK: grid intersection row={row}, col={col}, "
+                f"x={x:.3f}, y={y:.3f}, z={z:.3f}"
+        )
+
+        if parts == ["quit", "viewer"]:
+            self.state.running = False
+            return "OK: viewer quitting"
+
+        return f"ERROR: unknown command: {command}"
+    
+    def model_summary(self) -> str:
+        """Return a short model summary."""
+        return (
+            "OK: "
+            f"points={len(self.project_state.points)}, "
+            f"grid={self.project_state.idw_grid.x_divisions}x"
+            f"{self.project_state.idw_grid.y_divisions}, "
+            f"tin_vertices={len(self.project_state.tin.vertices)}, "
+            f"tin_triangles={len(self.project_state.tin.triangles)}"
+        )

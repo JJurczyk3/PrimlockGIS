@@ -1,13 +1,29 @@
 """Run Primelock GIS."""
 
-from pathlib import Path
-import shutil
+import sys
 
 from primelock_gis.app.startup import run_terminal_beta
+from primelock_gis.ui.terminal.admin import run_admin_terminal
 
 
 def main() -> None:
-    run_terminal_beta()
+    mode = "viewer"
+
+    if len(sys.argv) > 1:
+        mode = sys.argv[1]
+
+    if mode == "viewer":
+        run_terminal_beta()
+        return
+
+    if mode == "admin":
+        run_admin_terminal()
+        return
+
+    print(f"Unknown mode: {mode}")
+    print("Usage:")
+    print("  python -m primelock_gis viewer")
+    print("  python -m primelock_gis admin")
 
 
 if __name__ == "__main__":
