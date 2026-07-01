@@ -3,7 +3,7 @@
 import sys
 
 from primelock_gis.app.startup import run_terminal_beta
-from primelock_gis.ui.terminal.admin import run_admin_terminal
+from primelock_gis.ui.terminal.support_panel import run_support_panel
 
 
 def main() -> None:
@@ -16,14 +16,14 @@ def main() -> None:
         run_terminal_beta()
         return
 
-    if mode == "admin":
-        run_admin_terminal()
+    if mode == "support":
+        run_support_panel()
         return
 
     print(f"Unknown mode: {mode}")
     print("Usage:")
     print("  python -m primelock_gis viewer")
-    print("  python -m primelock_gis admin")
+    print("  python -m primelock_gis support")
 
 
 if __name__ == "__main__":

@@ -78,6 +78,7 @@ def build_tin_from_points(points: list[SpecialPoint]) -> TinModel:
     super_vertex_ids = {-1, -2, -3}
     final_triangles = _remove_super_triangle_triangles(triangles, super_vertex_ids)
     final_triangles = _renumber_triangles(final_triangles)
+    final_triangles = _attach_triangle_neighbors(final_triangles)
 
     return TinModel(
         vertices = real_vertices,
@@ -88,12 +89,11 @@ def build_tin_from_points(points: list[SpecialPoint]) -> TinModel:
 
 def _triangle_edges(triangle: TinTriangle) -> list[tuple[int, int]]:
     """Get the 3 undirected edges of a triangle."""
-    a, b, c = triangle.vertex_ids
-    # Sort the pairs to because (a, b) and (b, a) should be treated as the same pairs.
-    edge_1 = tuple(sorted((a, b)))
-    edge_2 = tuple(sorted((b, c)))
-    edge_3 = tuple(sorted((c, a)))
-    return [edge_1, edge_2, edge_3]
+    return [
+        triangle.edge_key(0),
+        triangle.edge_key(1),
+        triangle.edge_key(2),
+    ]
 
 
 def _boundary_edges(bad_triangles) -> list[tuple[int, int]]:
@@ -191,3 +191,52 @@ def _renumber_triangles(triangles: list[TinTriangle]) -> list[TinTriangle]:
         )
 
     return renumbered
+
+
+def _attach_triangle_neighbors(triangles: list[TinTriangle]) -> list[TinTriangle]:
+    """Populate neighbor ids across each ordered triangle edge.
+
+    The lecture-note TIN structure stores only ordered vertex ids and neighbor
+    triangle ids. Edges are implied by the vertex order:
+    edge 0 = v0-v1, edge 1 = v1-v2, edge 2 = v2-v0.
+    """
+    edge_uses = _triangle_edge_uses(triangles)
+    updated_triangles = []
+
+    for triangle in triangles:
+        neighbor_ids = []
+
+        for edge_index in range(3):
+            edge_key = triangle.edge_key(edge_index)
+            neighbors = [
+                other_triangle_id
+                for other_triangle_id, _ in edge_uses[edge_key]
+                if other_triangle_id != triangle.id
+            ]
+            neighbor_ids.append(min(neighbors) if neighbors else None)
+
+        updated_triangles.append(
+            TinTriangle(
+                id=triangle.id,
+                vertex_ids=triangle.vertex_ids,
+                neighbor_triangle_ids=tuple(neighbor_ids),
+                edge_arc_ids=triangle.edge_arc_ids,
+                containing_polygon_id=triangle.containing_polygon_id,
+            )
+        )
+
+    return updated_triangles
+
+
+def _triangle_edge_uses(
+    triangles: list[TinTriangle],
+) -> dict[tuple[int, int], list[tuple[int, int]]]:
+    """Return edge key -> triangle/edge-index references."""
+    edge_uses = {}
+
+    for triangle in triangles:
+        for edge_index in range(3):
+            edge_key = triangle.edge_key(edge_index)
+            edge_uses.setdefault(edge_key, []).append((triangle.id, edge_index))
+
+    return edge_uses

@@ -4,14 +4,12 @@ from pathlib import Path
 import shutil
 from queue import Queue
 
-from primelock_gis.app.project_state import ProjectState
-from primelock_gis.core.algorithms.grid import create_grid_model_idw
-from primelock_gis.core.algorithms.tin import build_tin_from_points
-from primelock_gis.core.load_data import load_normalised_sample_points
+from primelock_gis.app.project_builder import build_project_state
+from primelock_gis.app.project_state import ProjectConfig
 from primelock_gis.core.rendering.viewport_builder import initial_viewport_from_points
 from primelock_gis.ui.terminal.capabilities import detect_terminal_capabilities
 from primelock_gis.ui.terminal.interactive_app import InteractiveTerminalApp
-from primelock_gis.ui.terminal.admin import CommandRequest, start_command_server
+from primelock_gis.ui.terminal.support_panel import CommandRequest, start_command_server
 
 
 def run_terminal_beta(
@@ -23,20 +21,12 @@ def run_terminal_beta(
     if csv_path is None:
         csv_path = Path("data/initial_coords.csv")
 
-    points = load_normalised_sample_points(csv_path)
-
-    idw_grid = create_grid_model_idw(
-        points,
-        x_divisions=grid_x_division,
-        y_divisions=grid_y_division,
-    )
-
-    tin = build_tin_from_points(points)
-
-    project_state = ProjectState(
-        points=points,
-        idw_grid=idw_grid,
-        tin=tin,
+    project_state = build_project_state(
+        ProjectConfig(
+            dataset_path=csv_path,
+            grid_x_divisions=grid_x_division,
+            grid_y_divisions=grid_y_division,
+        )
     )
 
     terminal_size = shutil.get_terminal_size()
@@ -44,7 +34,7 @@ def run_terminal_beta(
     view_height = max(1, terminal_size.lines - 1)
 
     viewport = initial_viewport_from_points(
-        points,
+        project_state.points,
         view_width=view_width,
         view_height=view_height,
         padding=0.05,

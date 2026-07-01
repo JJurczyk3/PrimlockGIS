@@ -39,18 +39,27 @@ class GridModel:
         return self.y_min + row * self.dy
     
     def node_value(self, row: int, col: int) -> float:
+        self._validate_node_indices(row, col)
         return self.node_values[row][col]
+
+    def set_node_value(self, row: int, col: int, value: float) -> None:
+        """Set the z value at one grid node."""
+        self._validate_node_indices(row, col)
+        self.node_values[row][col] = value
     
 
     def grid_intersection(self, row: int, col: int) -> tuple[float, float, float]:
         """Return x, y, z at the selected grid row and column."""
-        if row < 0 or row > self.y_divisions:
-            raise ValueError("Grid row is out of bounds")
-
-        if col < 0 or col > self.x_divisions:
-            raise ValueError("Grid column is out of bounds")
+        self._validate_node_indices(row, col)
 
         x = self.node_x(col)
         y = self.node_y(row)
         z = self.node_value(row, col)
         return x, y, z
+
+    def _validate_node_indices(self, row: int, col: int) -> None:
+        if row < 0 or row > self.y_divisions:
+            raise ValueError("Grid row is out of bounds")
+
+        if col < 0 or col > self.x_divisions:
+            raise ValueError("Grid column is out of bounds")

@@ -1,6 +1,7 @@
 import pytest
 
 from primelock_gis.core.algorithms.tin import (
+    _attach_triangle_neighbors,
     _boundary_edges,
     _remove_super_triangle_triangles,
     _triangle_edges,
@@ -9,7 +10,7 @@ from primelock_gis.core.algorithms.tin import (
     create_super_triangle,
     points_to_tin_vertices,
 )
-from primelock_gis.core.models.tin import TinTriangle, TinVertex
+from primelock_gis.core.models.tin import TinModel, TinTriangle, TinVertex
 from primelock_gis.core.models.vector import SpecialPoint
 
 
@@ -63,6 +64,43 @@ def test_triangle_edges_returns_sorted_undirected_edges():
     ]
 
 
+def test_tin_triangle_exposes_ordered_edges_and_default_topology_fields():
+    triangle = TinTriangle(
+        id=7,
+        vertex_ids=(3, 1, 2),
+    )
+
+    assert triangle.edge_vertex_ids(0) == (3, 1)
+    assert triangle.edge_vertex_ids(1) == (1, 2)
+    assert triangle.edge_vertex_ids(2) == (2, 3)
+    assert triangle.edge_key(0) == (1, 3)
+    assert triangle.neighbor_triangle_ids == (None, None, None)
+    assert triangle.edge_arc_ids == (None, None, None)
+    assert triangle.containing_polygon_id is None
+
+
+def test_tin_triangle_rejects_invalid_edge_index():
+    triangle = TinTriangle(
+        id=0,
+        vertex_ids=(1, 2, 3),
+    )
+
+    with pytest.raises(ValueError):
+        triangle.edge_vertex_ids(3)
+
+
+def test_attach_triangle_neighbors_records_shared_edge_neighbors():
+    triangles = [
+        TinTriangle(id=0, vertex_ids=(0, 1, 2)),
+        TinTriangle(id=1, vertex_ids=(1, 3, 2)),
+    ]
+
+    updated = _attach_triangle_neighbors(triangles)
+
+    assert updated[0].neighbor_triangle_ids == (None, 1, None)
+    assert updated[1].neighbor_triangle_ids == (None, None, 0)
+
+
 def test_boundary_edges_removes_shared_internal_edge():
     bad_triangles = [
         TinTriangle(id=0, vertex_ids=(1, 2, 3)),
@@ -89,6 +127,22 @@ def test_vertices_by_id_returns_lookup_dictionary():
 
     assert lookup[0] is vertices[0]
     assert lookup[5] is vertices[1]
+
+
+def test_tin_model_returns_vertex_triangle_and_edge_indexes():
+    vertices = [
+        TinVertex(id=0, x=0.0, y=0.0),
+        TinVertex(id=1, x=10.0, y=0.0),
+        TinVertex(id=2, x=0.0, y=10.0),
+    ]
+    triangles = [
+        TinTriangle(id=4, vertex_ids=(0, 1, 2)),
+    ]
+    manual_tin = TinModel(vertices=vertices, triangles=triangles)
+
+    assert manual_tin.vertex_by_id()[1] is vertices[1]
+    assert manual_tin.triangle_by_id()[4] is triangles[0]
+    assert manual_tin.unique_edge_keys() == {(0, 1), (1, 2), (0, 2)}
 
 
 def test_remove_super_triangle_triangles_removes_artificial_vertices():
@@ -122,6 +176,8 @@ def test_build_tin_from_three_points_creates_one_triangle():
     triangle_vertex_ids = set(tin.triangles[0].vertex_ids)
 
     assert triangle_vertex_ids == {0, 1, 2}
+    assert tin.triangles[0].neighbor_triangle_ids == (None, None, None)
+    assert tin.triangles[0].edge_arc_ids == (None, None, None)
 
 
 def test_build_tin_from_less_than_three_points_raises_error():

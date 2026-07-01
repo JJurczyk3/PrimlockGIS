@@ -14,6 +14,7 @@ class PolylineStyle:
     color: str = "#000000"
     width: float = 1.0
     char: str = "-"
+    line_type: str = "literal"
 
 @dataclass
 class FillStyle:

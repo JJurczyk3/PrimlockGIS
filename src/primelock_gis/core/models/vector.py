@@ -33,6 +33,14 @@ class Polygon:
     arc_ids: list[int]
     outer_polygon: int = -1
 
+
+@dataclass
+class TopologyModel:
+    nodes: list[Node] = field(default_factory=list)
+    arcs: list[Arc] = field(default_factory=list)
+    polygons: list[Polygon] = field(default_factory=list)
+
+
 @dataclass
 class TextLabel:
     id: int

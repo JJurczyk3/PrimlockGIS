@@ -1,8 +1,12 @@
+import pytest
+
 from primelock_gis.core.algorithms.grid import (
     create_empty_grid_model,
     create_grid_model_idw,
+    densify_grid_model,
     get_point_bounds,
 )
+from primelock_gis.core.models.grid import GridModel
 from primelock_gis.core.models.vector import SpecialPoint
 
 
@@ -41,3 +45,85 @@ def test_create_grid_model_idw_preserves_known_corner_values():
     assert grid.node_values[0][1] == 20.0
     assert grid.node_values[1][0] == 30.0
     assert grid.node_values[1][1] == 40.0
+
+
+def test_grid_model_set_node_value_updates_checked_node():
+    grid = GridModel(
+        x_min=0.0,
+        y_min=0.0,
+        x_max=10.0,
+        y_max=10.0,
+        x_divisions=1,
+        y_divisions=1,
+        node_values=[
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+    )
+
+    grid.set_node_value(1, 0, 9.5)
+
+    assert grid.node_value(1, 0) == 9.5
+
+
+def test_grid_model_set_node_value_rejects_out_of_bounds_node():
+    grid = GridModel(
+        x_min=0.0,
+        y_min=0.0,
+        x_max=10.0,
+        y_max=10.0,
+        x_divisions=1,
+        y_divisions=1,
+        node_values=[
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+    )
+
+    with pytest.raises(ValueError):
+        grid.set_node_value(2, 0, 9.5)
+
+
+def test_densify_grid_model_handles_non_square_grid():
+    grid = GridModel(
+        x_min=0.0,
+        y_min=0.0,
+        x_max=10.0,
+        y_max=20.0,
+        x_divisions=1,
+        y_divisions=2,
+        node_values=[
+            [1.0, 3.0],
+            [5.0, 7.0],
+            [9.0, 11.0],
+        ],
+    )
+
+    dense = densify_grid_model(grid, x_splits=2, y_splits=3)
+
+    assert dense.x_divisions == 2
+    assert dense.y_divisions == 6
+    assert len(dense.node_values) == 7
+    assert len(dense.node_values[0]) == 3
+    assert dense.node_value(0, 0) == 1.0
+    assert dense.node_value(0, 2) == 3.0
+    assert dense.node_value(3, 1) == 6.0
+    assert dense.node_value(6, 2) == 11.0
+
+
+def test_densify_grid_model_rejects_invalid_splits():
+    grid = GridModel(
+        x_min=0.0,
+        y_min=0.0,
+        x_max=10.0,
+        y_max=10.0,
+        x_divisions=1,
+        y_divisions=1,
+        node_values=[
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+    )
+
+    with pytest.raises(ValueError):
+        densify_grid_model(grid, x_splits=0, y_splits=1)

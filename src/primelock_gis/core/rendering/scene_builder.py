@@ -1,9 +1,20 @@
 """Create drawable objects from GIS data."""
 
-from primelock_gis.core.models.vector import SpecialPoint
-from primelock_gis.core.rendering.scene import DrawablePoint, DrawablePolyline, Scene
+from primelock_gis.core.models.contour import ContourPolyline, ContourSegment
+from primelock_gis.core.models.vector import SpecialPoint, TopologyModel
+from primelock_gis.core.rendering.scene import (
+    DrawablePoint,
+    DrawablePolyline,
+    DrawableText,
+    Scene,
+)
 from primelock_gis.core.geometry import Point
-from primelock_gis.core.rendering.symbology import PointStyle, PolylineStyle, FillStyle
+from primelock_gis.core.rendering.symbology import (
+    PointStyle,
+    PolylineStyle,
+    FillStyle,
+    TextStyle,
+)
 from primelock_gis.core.models.grid import GridModel
 from primelock_gis.core.models.tin import TinModel
 
@@ -65,42 +76,149 @@ def tin_to_scene(tin_model: TinModel, style: PolylineStyle | None = None) -> Sce
         style = PolylineStyle(char="*")
 
     scene = Scene()
-    vertex_by_id = {}
+    vertex_by_id = tin_model.vertex_by_id()
 
-    for vertex in tin_model.vertices:
-        vertex_by_id[vertex.id] = vertex
+    for edge in sorted(tin_model.unique_edge_keys()):
+        start_vertex = vertex_by_id[edge[0]]
+        end_vertex = vertex_by_id[edge[1]]
 
-    drawn_edges = set()
-
-    for triangle in tin_model.triangles:
-        a_id, b_id, c_id = triangle.vertex_ids
-
-        edges = [
-            tuple(sorted((a_id, b_id))),
-            tuple(sorted((b_id, c_id))),
-            tuple(sorted((c_id, a_id))),
-        ]
-        for edge in edges:
-            if edge in drawn_edges:
-                continue
-            drawn_edges.add(edge)
-
-            start_vertex = vertex_by_id[edge[0]]
-            end_vertex = vertex_by_id[edge[1]]
-
-            drawable = DrawablePolyline(
-                points=[
-                    Point(start_vertex.x, start_vertex.y),
-                    Point(end_vertex.x, end_vertex.y),
-                ],
-                style=style,
-            )
-            scene.polylines.append(drawable)
+        drawable = DrawablePolyline(
+            points=[
+                Point(start_vertex.x, start_vertex.y),
+                Point(end_vertex.x, end_vertex.y),
+            ],
+            style=style,
+        )
+        scene.polylines.append(drawable)
     return scene
 
 
-def contours_to_scene():
-    pass
+def contour_segments_to_scene(
+    segments: list[ContourSegment],
+    style: PolylineStyle | None = None,
+) -> Scene:
+    """Convert raw contour segments to display scene polylines."""
+    if style is None:
+        style = PolylineStyle(char="=")
 
-def topology_to_scene():
-    pass
+    scene = Scene()
+
+    for segment in segments:
+        drawable = DrawablePolyline(
+            points=[
+                segment.start,
+                segment.end,
+            ],
+            style=style,
+        )
+        scene.polylines.append(drawable)
+
+    return scene
+
+
+def contour_polylines_to_scene(
+    polylines: list[ContourPolyline],
+    style: PolylineStyle | None = None,
+) -> Scene:
+    """Convert traced contour polylines to display scene polylines."""
+    if style is None:
+        style = PolylineStyle(char="=")
+
+    scene = Scene()
+
+    for polyline in polylines:
+        points = list(polyline.points)
+
+        if (
+            polyline.closed
+            and len(points) >= 2
+            and points[0] != points[-1]
+        ):
+            points.append(points[0])
+
+        drawable = DrawablePolyline(
+            points=points,
+            style=style,
+        )
+        scene.polylines.append(drawable)
+
+    return scene
+
+
+def contours_to_scene(
+    polylines: list[ContourPolyline],
+    style: PolylineStyle | None = None,
+) -> Scene:
+    """Compatibility wrapper for traced contour polyline rendering."""
+    return contour_polylines_to_scene(polylines, style)
+
+
+def contour_labels_to_scene(
+    polylines: list[ContourPolyline],
+    style: TextStyle | None = None,
+) -> Scene:
+    """Convert contour levels to text labels placed on each polyline."""
+    if style is None:
+        style = TextStyle(color="#BAE6FD")
+
+    scene = Scene()
+
+    for polyline in polylines:
+        if not polyline.points:
+            continue
+
+        label_point = polyline.points[len(polyline.points) // 2]
+        scene.texts.append(
+            DrawableText(
+                position=label_point,
+                text=f"{polyline.level:g}",
+                style=style,
+            )
+        )
+
+    return scene
+
+
+def topology_to_scene(
+    topology: TopologyModel,
+    arc_style: PolylineStyle | None = None,
+    node_style: PointStyle | None = None,
+) -> Scene:
+    """Convert topology nodes and arcs to a display scene."""
+    if arc_style is None:
+        arc_style = PolylineStyle(char="-")
+
+    if node_style is None:
+        node_style = PointStyle(char="o")
+
+    scene = Scene()
+    node_by_id = {
+        node.id: node
+        for node in topology.nodes
+    }
+
+    for arc in topology.arcs:
+        start_node = node_by_id[arc.start_node]
+        end_node = node_by_id[arc.end_node]
+        points = [Point(start_node.x, start_node.y)]
+
+        for x, y in arc.intermediate_points:
+            points.append(Point(x, y))
+
+        points.append(Point(end_node.x, end_node.y))
+        scene.polylines.append(
+            DrawablePolyline(
+                points=points,
+                style=arc_style,
+            )
+        )
+
+    for node in topology.nodes:
+        scene.points.append(
+            DrawablePoint(
+                position=Point(node.x, node.y),
+                style=node_style,
+            )
+        )
+
+    return scene

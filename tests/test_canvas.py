@@ -4,6 +4,7 @@ from primelock_gis.ui.terminal.canvas import (
     safe_cell_char,
     clip_text_to_width,
 )
+from primelock_gis.ui.terminal.capabilities import TerminalCapabilities
 
 
 """Manually written test casses"""
@@ -26,6 +27,20 @@ def test_clear_resets_canvas():
 
     canvas.clear()
 
+    assert canvas.to_string() == ".....\n....."
+
+
+def test_clear_reuses_existing_cell_objects():
+    canvas = TerminalCanvas(5, 2, ".")
+    first_cell = canvas.cells[0][0]
+    last_cell = canvas.cells[1][4]
+
+    canvas.set_cell(0, 0, "X", foreground="#ff0000")
+    canvas.set_line_cell(4, 1, {"left", "right"})
+    canvas.clear()
+
+    assert canvas.cells[0][0] is first_cell
+    assert canvas.cells[1][4] is last_cell
     assert canvas.to_string() == ".....\n....."
 
 
@@ -187,3 +202,97 @@ def test_clip_text_to_width_truncates_long_text():
 
 def test_clip_text_to_width_zero_width_returns_empty_string():
     assert clip_text_to_width("ABCDE", 0) == ""
+
+
+def test_set_cell_stores_foreground_color_without_plain_ansi_output():
+    canvas = TerminalCanvas(3, 1, ".")
+
+    canvas.set_cell(1, 0, "X", foreground="#ff0000")
+
+    assert canvas.cells[0][1].foreground == "#ff0000"
+    assert canvas.to_string() == ".X."
+
+
+def test_to_string_emits_truecolor_when_supported():
+    canvas = TerminalCanvas(3, 1, ".")
+    capabilities = TerminalCapabilities(
+        supports_color=True,
+        supports_truecolor=True,
+    )
+
+    canvas.set_cell(1, 0, "X", foreground="#ff0000")
+
+    assert canvas.to_string(capabilities) == ".\x1b[38;2;255;0;0mX\x1b[0m."
+
+
+def test_to_string_emits_basic_ansi_when_truecolor_is_not_supported():
+    canvas = TerminalCanvas(3, 1, ".")
+    capabilities = TerminalCapabilities(
+        supports_color=True,
+        supports_truecolor=False,
+    )
+
+    canvas.set_cell(1, 0, "X", foreground="#ff0000")
+
+    assert canvas.to_string(capabilities) == ".\x1b[31mX\x1b[0m."
+
+
+def test_to_string_omits_ansi_when_color_is_not_supported():
+    canvas = TerminalCanvas(3, 1, ".")
+    capabilities = TerminalCapabilities(supports_color=False)
+
+    canvas.set_cell(1, 0, "X", foreground="#ff0000")
+
+    assert canvas.to_string(capabilities) == ".X."
+
+
+def test_line_cells_merge_into_unicode_junctions():
+    canvas = TerminalCanvas(3, 3, ".")
+
+    canvas.set_line_cell(1, 1, {"left", "right"})
+    canvas.set_line_cell(1, 1, {"up", "down"})
+
+    assert canvas.to_string() == "...\n.┼.\n..."
+
+
+def test_line_cells_have_ascii_fallback():
+    canvas = TerminalCanvas(3, 3, ".")
+    capabilities = TerminalCapabilities(supports_unicode=False)
+
+    canvas.set_line_cell(1, 1, {"left", "right"})
+    canvas.set_line_cell(1, 1, {"up", "down"})
+
+    assert canvas.to_string(capabilities) == "...\n.+.\n..."
+
+
+def test_braille_dots_merge_inside_one_cell():
+    canvas = TerminalCanvas(3, 1, ".")
+
+    canvas.set_braille_dot(1, 0, 0, 0)
+    canvas.set_braille_dot(1, 0, 1, 3)
+
+    assert canvas.to_string() == f".{chr(0x2800 + 0x01 + 0x80)}."
+
+
+def test_braille_dots_have_ascii_fallback():
+    canvas = TerminalCanvas(3, 1, ".")
+    capabilities = TerminalCapabilities(
+        supports_unicode=False,
+        supports_braille=False,
+    )
+
+    canvas.set_braille_dot(1, 0, 0, 0)
+
+    assert canvas.to_string(capabilities) == ".*."
+
+
+def test_braille_dots_store_color_and_emit_ansi():
+    canvas = TerminalCanvas(3, 1, ".")
+    capabilities = TerminalCapabilities(
+        supports_color=True,
+        supports_truecolor=True,
+    )
+
+    canvas.set_braille_dot(1, 0, 0, 0, color="#ff0000")
+
+    assert "\x1b[38;2;255;0;0m" in canvas.to_string(capabilities)

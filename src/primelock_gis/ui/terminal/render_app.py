@@ -42,4 +42,3 @@ class TerminalRenderApp:
         if width != self.last_width or height != self.last_height:
             self.viewport = self.viewport.resize_viewport(width, height)
             self.build_renderer()
-        

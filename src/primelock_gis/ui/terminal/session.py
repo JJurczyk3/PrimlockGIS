@@ -33,6 +33,8 @@ class TerminalSession:
         self._write("\x1b[?25h")  # show cursor
         self._write("\x1b[?1049l")  # leave alternate screen
 
+        termios.tcflush(sys.stdin, termios.TCIFLUSH)
+
         if self.original_settings is not None:
             termios.tcsetattr(
                 sys.stdin,

@@ -1,3 +1,5 @@
+import pytest
+
 from primelock_gis.core.geometry import Point
 from primelock_gis.core.rendering.viewport import Viewport
 from primelock_gis.core.rendering.scene import DrawablePoint, DrawablePolyline, Scene
@@ -14,7 +16,7 @@ from primelock_gis.ui.terminal.renderer2d import TerminalRenderer2D
 - point outside viewport does not crash
 """
 
-def make_renderer():
+def make_renderer(capabilities=None):
     canvas = TerminalCanvas(10, 10, ".")
     viewport = Viewport(
         world_min_x=0,
@@ -24,8 +26,13 @@ def make_renderer():
         view_width=10,
         view_height=10,
     )
-    capabilities = TerminalCapabilities()
+    if capabilities is None:
+        capabilities = TerminalCapabilities(supports_color=False)
     return TerminalRenderer2D(canvas, viewport, capabilities)
+
+
+def contains_braille(text: str) -> bool:
+    return any(0x2800 <= ord(char) <= 0x28FF for char in text)
 
 
 def test_renderer_clear_resets_canvas():
@@ -35,6 +42,10 @@ def test_renderer_clear_resets_canvas():
     renderer.clear()
 
     assert renderer.to_string() == "\n".join(["." * 10 for _ in range(10)])
+
+
+def test_polyline_style_defaults_to_literal_for_backwards_compatibility():
+    assert PolylineStyle().line_type == "literal"
 
 
 def test_draw_point_draws_style_character():
@@ -66,6 +77,19 @@ def test_render_scene_draws_visible_point():
 
     rows = renderer.to_string().split("\n")
     assert rows[5][5] == "●"
+
+
+def test_draw_point_on_world_max_boundary_stays_on_canvas():
+    renderer = make_renderer()
+    point = DrawablePoint(
+        position=Point(100, 0),
+        style=PointStyle(char="●"),
+    )
+
+    renderer.draw_point(point)
+
+    rows = renderer.to_string().split("\n")
+    assert rows[9][9] == "●"
 
 
 def test_render_scene_skips_invisible_point():
@@ -121,3 +145,244 @@ def test_draw_diagonal_polyline():
 
     output = renderer.to_string()
     assert "-" in output
+
+
+def test_draw_solid_horizontal_polyline_uses_box_drawing():
+    renderer = make_renderer()
+    line = DrawablePolyline(
+        points=[Point(10, 50), Point(90, 50)],
+        style=PolylineStyle(char="-", line_type="solid"),
+    )
+
+    renderer.draw_polyline(line)
+
+    rows = renderer.to_string().split("\n")
+    assert "─────────" in rows[5]
+
+
+def test_draw_solid_vertical_polyline_uses_box_drawing():
+    renderer = make_renderer()
+    line = DrawablePolyline(
+        points=[Point(50, 90), Point(50, 10)],
+        style=PolylineStyle(char="-", line_type="solid"),
+    )
+
+    renderer.draw_polyline(line)
+
+    rows = renderer.to_string().split("\n")
+    assert rows[1][5] == "│"
+    assert rows[8][5] == "│"
+
+
+def test_draw_polyline_corner_merges_edges():
+    renderer = make_renderer()
+    line = DrawablePolyline(
+        points=[Point(10, 50), Point(50, 50), Point(50, 10)],
+        style=PolylineStyle(char="-", line_type="solid"),
+    )
+
+    renderer.draw_polyline(line)
+
+    rows = renderer.to_string().split("\n")
+    assert rows[5][5] == "┐"
+
+
+def test_same_style_lines_merge_into_cross_junction():
+    renderer = make_renderer()
+    horizontal = DrawablePolyline(
+        points=[Point(10, 50), Point(90, 50)],
+        style=PolylineStyle(char="-", color="#555555", line_type="solid"),
+    )
+    vertical = DrawablePolyline(
+        points=[Point(50, 90), Point(50, 10)],
+        style=PolylineStyle(char="-", color="#555555", line_type="solid"),
+    )
+
+    renderer.draw_polyline(horizontal)
+    renderer.draw_polyline(vertical)
+
+    rows = renderer.to_string().split("\n")
+    assert rows[5][5] == "┼"
+
+
+def test_different_style_lines_overwrite_instead_of_merging():
+    renderer = make_renderer()
+    horizontal = DrawablePolyline(
+        points=[Point(10, 50), Point(90, 50)],
+        style=PolylineStyle(char="-", color="#555555", line_type="solid"),
+    )
+    vertical = DrawablePolyline(
+        points=[Point(50, 90), Point(50, 10)],
+        style=PolylineStyle(char="-", color="#777777", line_type="solid"),
+    )
+
+    renderer.draw_polyline(horizontal)
+    renderer.draw_polyline(vertical)
+
+    rows = renderer.to_string().split("\n")
+    assert rows[5][5] == "│"
+
+
+def test_draw_diagonal_solid_polyline_uses_diagonal_character():
+    renderer = make_renderer()
+    line = DrawablePolyline(
+        points=[Point(10, 90), Point(90, 10)],
+        style=PolylineStyle(char="-", line_type="solid"),
+    )
+
+    renderer.draw_polyline(line)
+
+    rows = renderer.to_string().split("\n")
+    assert rows[1][1] == "╲"
+
+
+def test_oblique_solid_polyline_uses_braille_subcell_rendering():
+    renderer = make_renderer()
+    line = DrawablePolyline(
+        points=[Point(10, 85), Point(90, 45)],
+        style=PolylineStyle(char="-", line_type="solid"),
+    )
+
+    renderer.draw_polyline(line)
+
+    assert contains_braille(renderer.to_string())
+
+
+def test_braille_line_type_forces_braille_for_horizontal_linework():
+    renderer = make_renderer()
+    line = DrawablePolyline(
+        points=[Point(10, 50), Point(90, 50)],
+        style=PolylineStyle(char="-", line_type="braille"),
+    )
+
+    renderer.draw_polyline(line)
+
+    output = renderer.to_string()
+    assert contains_braille(output)
+    assert "─" not in output
+
+
+def test_oblique_polyline_uses_cell_renderer_when_braille_is_disabled():
+    renderer = make_renderer(
+        TerminalCapabilities(
+            supports_unicode=True,
+            supports_braille=False,
+            supports_color=False,
+        )
+    )
+    line = DrawablePolyline(
+        points=[Point(10, 85), Point(90, 45)],
+        style=PolylineStyle(char="-", line_type="solid"),
+    )
+
+    renderer.draw_polyline(line)
+
+    assert not contains_braille(renderer.to_string())
+
+
+def test_line_clipping_limits_far_offscreen_segments_to_canvas_bounds():
+    renderer = make_renderer()
+
+    clipped = renderer._clip_line_to_rect(
+        x1=-1_000_000,
+        y1=5,
+        x2=1_000_000,
+        y2=5,
+        min_x=0,
+        min_y=0,
+        max_x=9,
+        max_y=9,
+    )
+
+    assert clipped == pytest.approx((0.0, 5.0, 9.0, 5.0))
+
+
+def test_far_offscreen_polyline_renders_after_clipping():
+    renderer = make_renderer(
+        TerminalCapabilities(
+            supports_unicode=True,
+            supports_braille=False,
+            supports_color=False,
+        )
+    )
+    line = DrawablePolyline(
+        points=[Point(-10_000, 50), Point(10_000, 50)],
+        style=PolylineStyle(char="-", line_type="solid"),
+    )
+
+    renderer.draw_polyline(line)
+
+    rows = renderer.to_string().split("\n")
+    assert "──────────" in rows[5]
+
+
+def test_completely_offscreen_polyline_is_culled_before_rasterizing():
+    renderer = make_renderer()
+    line = DrawablePolyline(
+        points=[Point(200, 200), Point(300, 300)],
+        style=PolylineStyle(char="-", line_type="solid"),
+    )
+
+    renderer.draw_polyline(line)
+
+    assert renderer.to_string() == "\n".join(["." * 10 for _ in range(10)])
+
+
+def test_ascii_fallback_uses_ascii_line_characters():
+    renderer = make_renderer(
+        TerminalCapabilities(
+            supports_unicode=False,
+            supports_color=False,
+        )
+    )
+    horizontal = DrawablePolyline(
+        points=[Point(10, 50), Point(90, 50)],
+        style=PolylineStyle(char="-", line_type="solid"),
+    )
+    vertical = DrawablePolyline(
+        points=[Point(50, 90), Point(50, 10)],
+        style=PolylineStyle(char="-", line_type="solid"),
+    )
+
+    renderer.draw_polyline(horizontal)
+    renderer.draw_polyline(vertical)
+
+    rows = renderer.to_string().split("\n")
+    assert rows[5][1] == "-"
+    assert rows[1][5] == "|"
+    assert rows[5][5] == "+"
+
+
+def test_dashed_and_dotted_lines_render_differently():
+    dashed_renderer = make_renderer()
+    dotted_renderer = make_renderer()
+    dashed = DrawablePolyline(
+        points=[Point(0, 50), Point(100, 50)],
+        style=PolylineStyle(char="-", line_type="dashed"),
+    )
+    dotted = DrawablePolyline(
+        points=[Point(0, 50), Point(100, 50)],
+        style=PolylineStyle(char="-", line_type="dotted"),
+    )
+
+    dashed_renderer.draw_polyline(dashed)
+    dotted_renderer.draw_polyline(dotted)
+
+    assert dashed_renderer.to_string() != dotted_renderer.to_string()
+
+
+def test_renderer_emits_truecolor_for_non_default_style_color():
+    renderer = make_renderer(
+        TerminalCapabilities(
+            supports_color=True,
+            supports_truecolor=True,
+        )
+    )
+    point = DrawablePoint(
+        position=Point(50, 50),
+        style=PointStyle(char="●", color="#ff0000"),
+    )
+
+    renderer.draw_point(point)
+
+    assert "\x1b[38;2;255;0;0m" in renderer.to_string()

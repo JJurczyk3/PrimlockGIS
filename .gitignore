@@ -15,3 +15,7 @@ wheels/
 
 # Poetry lock file
 uv.lock
+
+# PDF documents
+.pdf
+高级地理信息系统课程讲义2026-北京大学毛善君.pdf

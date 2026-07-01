@@ -90,21 +90,26 @@ def _fill_grid_model(
             y = grid_model.node_y(row)
             z = interpolation_function(points, x, y)
 
-            grid_model.node_values[row][col] = z
+            grid_model.set_node_value(row, col, z)
     return grid_model
 
 
 def densify_grid_model(grid: GridModel, x_splits: int, y_splits: int) -> GridModel:
-    """Densify the grid model by spliting rows and columns."""
+    """Densify the grid model by splitting each cell into smaller cells."""
+    if not isinstance(x_splits, int) or not isinstance(y_splits, int):
+        raise ValueError("Grid splits must be integers")
+    if x_splits < 1 or y_splits < 1:
+        raise ValueError("Grid splits must be positive")
+
     new_x_divisions = grid.x_divisions * x_splits
     new_y_divisions = grid.y_divisions * y_splits
   
     node_values = []
 
-    for new_row in range(new_x_divisions + 1):
+    for new_row in range(new_y_divisions + 1):
         grid_row = []
 
-        for new_col in range(new_y_divisions + 1):
+        for new_col in range(new_x_divisions + 1):
             # Find which old grid cell this new node lies in
             old_row = new_row // y_splits
             old_col = new_col // x_splits 
