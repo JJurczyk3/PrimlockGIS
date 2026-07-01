@@ -7,6 +7,7 @@ will implement these methods.
 
 from .scene import (
     Scene,
+    DrawableTerrain,
     DrawablePolygon,
     DrawablePolyline,
     DrawablePoint,
@@ -23,6 +24,9 @@ class RendererBase:
     def draw_polygon(self, drawable: DrawablePolygon) -> None:
         raise NotImplementedError("draw_polygon() must be implemented by subclasses")
 
+    def draw_terrain(self, drawable: DrawableTerrain) -> None:
+        raise NotImplementedError("draw_terrain() must be implemented by subclasses")
+
     def draw_polyline(self, drawable: DrawablePolyline) -> None:
         raise NotImplementedError("draw_polyline() must be implemented by subclasses")
 
@@ -35,6 +39,10 @@ class RendererBase:
     def render_scene(self, scene: Scene) -> None:
         """Render a full scene in GIS display order."""
         self.clear()
+
+        for terrain in scene.terrains:
+            if terrain.visible:
+                self.draw_terrain(terrain)
 
         for polygon in scene.polygons:
             if polygon.visible:

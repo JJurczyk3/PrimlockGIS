@@ -57,6 +57,38 @@ class GridModel:
         z = self.node_value(row, col)
         return x, y, z
 
+    def contains_xy(self, x: float, y: float) -> bool:
+        """Return True if a world coordinate lies inside the grid bounds."""
+        return self.x_min <= x <= self.x_max and self.y_min <= y <= self.y_max
+
+    def value_at(self, x: float, y: float) -> float:
+        """Return a bilinearly interpolated grid value at a world coordinate."""
+        if not self.contains_xy(x, y):
+            raise ValueError("Point is outside grid bounds")
+
+        col = min(
+            self.x_divisions - 1,
+            max(0, int((x - self.x_min) / self.dx)),
+        )
+        row = min(
+            self.y_divisions - 1,
+            max(0, int((y - self.y_min) / self.dy)),
+        )
+        u = (x - self.node_x(col)) / self.dx
+        v = (y - self.node_y(row)) / self.dy
+
+        z00 = self.node_value(row, col)
+        z10 = self.node_value(row, col + 1)
+        z01 = self.node_value(row + 1, col)
+        z11 = self.node_value(row + 1, col + 1)
+
+        return (
+            z00 * (1 - u) * (1 - v)
+            + z10 * u * (1 - v)
+            + z01 * (1 - u) * v
+            + z11 * u * v
+        )
+
     def _validate_node_indices(self, row: int, col: int) -> None:
         if row < 0 or row > self.y_divisions:
             raise ValueError("Grid row is out of bounds")

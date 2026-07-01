@@ -225,6 +225,29 @@ def test_to_string_emits_truecolor_when_supported():
     assert canvas.to_string(capabilities) == ".\x1b[38;2;255;0;0mX\x1b[0m."
 
 
+def test_to_string_emits_truecolor_background_when_supported():
+    canvas = TerminalCanvas(2, 1, ".")
+    capabilities = TerminalCapabilities(
+        supports_color=True,
+        supports_truecolor=True,
+    )
+
+    canvas.set_background_cell(0, 0, "#0000ff")
+
+    assert canvas.to_string(capabilities) == "\x1b[48;2;0;0;255m \x1b[0m."
+
+
+def test_foreground_overlay_preserves_background_color():
+    canvas = TerminalCanvas(1, 1, ".")
+
+    canvas.set_background_cell(0, 0, "#0000ff")
+    canvas.set_cell(0, 0, "X", foreground="#ff0000")
+
+    assert canvas.cells[0][0].char == "X"
+    assert canvas.cells[0][0].foreground == "#ff0000"
+    assert canvas.cells[0][0].background == "#0000ff"
+
+
 def test_to_string_emits_basic_ansi_when_truecolor_is_not_supported():
     canvas = TerminalCanvas(3, 1, ".")
     capabilities = TerminalCapabilities(

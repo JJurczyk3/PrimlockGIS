@@ -26,3 +26,11 @@ class FillStyle:
 class TextStyle:
     color: str = "#000000"
     height: float = 10.0
+
+@dataclass
+class TerrainStyle:
+    low_color: str = "#1E3A8A"
+    low_mid_color: str = "#15803D"
+    high_mid_color: str = "#EAB308"
+    high_color: str = "#DC2626"
+    char: str = " "

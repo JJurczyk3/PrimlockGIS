@@ -152,6 +152,7 @@ def test_support_panel_layers_render_adds_contour_buttons():
     app._render_layers_panel(lines, width=40)
 
     actions = {button.action for button in app.buttons}
+    assert "command:toggle terrain" in actions
     assert "command:toggle contours" in actions
     assert "command:toggle contour source" in actions
     assert "command:toggle contour labels" in actions

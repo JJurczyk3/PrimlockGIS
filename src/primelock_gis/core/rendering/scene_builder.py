@@ -3,6 +3,7 @@
 from primelock_gis.core.models.contour import ContourPolyline, ContourSegment
 from primelock_gis.core.models.vector import SpecialPoint, TopologyModel
 from primelock_gis.core.rendering.scene import (
+    DrawableTerrain,
     DrawablePoint,
     DrawablePolyline,
     DrawableText,
@@ -14,9 +15,25 @@ from primelock_gis.core.rendering.symbology import (
     PolylineStyle,
     FillStyle,
     TextStyle,
+    TerrainStyle,
 )
 from primelock_gis.core.models.grid import GridModel
 from primelock_gis.core.models.tin import TinModel
+
+
+def terrain_to_scene(grid_model: GridModel, style: TerrainStyle | None = None) -> Scene:
+    """Convert a grid model to a terrain colour scene layer."""
+    if style is None:
+        style = TerrainStyle()
+
+    return Scene(
+        terrains=[
+            DrawableTerrain(
+                grid=grid_model,
+                style=style,
+            )
+        ]
+    )
 
 
 def points_to_scene(points: list[SpecialPoint], style: PointStyle | None = None) -> Scene:

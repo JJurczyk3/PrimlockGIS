@@ -6,8 +6,22 @@ It describes WHAT should be drawn, not HOW it should be drawn.
 from dataclasses import dataclass, field
 
 from primelock_gis.core.geometry import Point
-from .symbology import PointStyle, PolylineStyle, FillStyle, TextStyle
+from primelock_gis.core.models.grid import GridModel
+from .symbology import (
+    PointStyle,
+    PolylineStyle,
+    FillStyle,
+    TextStyle,
+    TerrainStyle,
+)
 
+
+@dataclass
+class DrawableTerrain:
+    grid: GridModel
+    style: TerrainStyle
+    layer: str = "terrain"
+    visible: bool = True
 
 @dataclass
 class DrawablePolygon:
@@ -40,6 +54,7 @@ class DrawableText:
 
 @dataclass
 class Scene:
+    terrains: list[DrawableTerrain] = field(default_factory=list)
     polygons: list[DrawablePolygon] = field(default_factory=list)
     polylines: list[DrawablePolyline] = field(default_factory=list)
     points: list[DrawablePoint] = field(default_factory=list)

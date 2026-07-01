@@ -1,91 +1,96 @@
-## System objectives and key data structures: (Core data structures)
-canvas.py
-    stores terminal cells
+# Primelock GIS Design Notes
 
-renderer2d.py
-    draws scene objects into canvas
+This document tracks the current implementation state and near-term roadmap for the coursework prototype.
 
-viewport.py
-    stores world bounds and view size
+## Architecture
 
-app.py
-    checks terminal size and rebuilds/redraws when needed
+Primelock GIS is split into four layers:
 
+- `core/models`: data models for points, grids, TINs, contours, and topology.
+- `core/algorithms`: interpolation, grid construction, grid densification, TIN generation, contour extraction/tracing, topology construction.
+- `core/rendering`: backend-independent scene objects, styles, viewport transforms, and scene builders.
+- `ui/terminal`: terminal canvas, ANSI rendering, input parsing, interactive viewer, and support panel.
 
-## Project status (What the system must do)
-- [X] Data loading
-- [X] Basic geometry utilities
-- [ ] Grid interpolation
-- [ ] Grid densification
-- [ ] Convex hull
-- [ ] TIN generation
-- [ ] Grid contours
-- [ ] TIN contours
-- [ ] Smoothing
-- [ ] Topology construction
-- [ ] Export of topology tables
-- [ ] Create a GUI
+The terminal UI should call app/core services and scene builders. GIS algorithms should stay in `core`, not in terminal UI modules.
 
+## Completed
 
-## Algorithms to implement later
-The system will be built around a **vector** GIS model, where spatial data is represented using nodes, arcs, and polygons connected through explicit topology. In such models, polygons are defined by arcs, and arcs connect at nodes, enabling efficient spatial relationships and analysis :contentReference[oaicite:0]{index=0}.
+- CSV point loading and column cleanup.
+- Coordinate normalization for display and modeling.
+- Basic geometry utilities.
+- Viewport transforms, pan, zoom, and resize behavior.
+- Terminal canvas with foreground colors, background colors, line merging, Unicode and ASCII fallbacks, and Braille line support.
+- Terminal renderer for points, grid lines, TIN edges, contours, labels, topology linework, and terrain color backgrounds.
+- Scene builders for points, grids, TINs, contours, topology, and terrain.
+- Regular grid model generation.
+- IDW interpolation.
+- Directional weighted-average interpolation in core grid generation.
+- Grid densification by bilinear subdivision.
+- Bowyer-Watson / Delaunay-style TIN generation.
+- Grid contour generation and tracing into open/closed polylines.
+- TIN contour generation and tracing.
+- Contour label scene generation.
+- Terrain coloring from grid values using terminal background colors.
+- First-pass node/arc/polygon topology from point sequences and contour polylines.
+- Table-like topology export helpers.
+- Interactive terminal viewer with keyboard and mouse controls.
+- Support/control panel in a second terminal.
+- Runtime commands for layer toggles, contour settings, grid divisions, dataset load/reload, config summary, and model summary.
+- Safe project rebuild path that keeps the current project if a dataset load or rebuild fails.
+- Tests for interpolation, grid models, TIN, contours, topology, rendering, terminal input, viewer commands, support panel behavior, config validation, and project rebuild safety.
 
-Planned components:
+## Partially Implemented / Needs Hardening
 
-- **Vector structures**: node–arc–polygon model with explicit topology relationships  
-- **Grid interpolation**: generation and refinement of regular grid models from sampled points  
-- **TIN modeling**: construction of terrain surfaces using a triangulated irregular network (TIN)  
-- **Contour extraction**: generation of contour lines from grid and TIN models  
-- **Topology construction**: building connectivity and adjacency between nodes, arcs, and polygons  
-- **Polygon analysis**: area, perimeter, and region-based queries  
-- **Export**: output of topology tables for arcs and polygons  
+- Directional interpolation is implemented in core and supported by `ProjectConfig`, but the viewer/support panel does not yet expose a runtime interpolation-method control.
+- Project rebuilds are structured behind a service, but expensive rebuilds still run synchronously.
+- Terrain coloring is implemented as a terminal background layer, but there is no low-resolution panning mode or delayed high-resolution redraw yet.
+- Topology construction handles endpoints, intersections, arcs, and simple closed-ring polygons, but it is still a first pass and needs more validation on complex contour networks.
+- Topology export returns table-like Python records; file export formats are not yet formalized.
+- Contour smoothing is a placeholder.
+- Support panel uses typed admin commands for dataset paths; there is no interactive path input widget yet.
+- Error messages are practical but not yet centralized.
 
+## Next Priority
 
-## Original data
-- The initial dataset of 43 points.
-| No. | Data point name | X coordinate | Y coordinate |        z |
-| --: | --------------- | -----------: | -----------: | -------: |
-|   0 | 36-12           | 38432530.737 |  3738049.289 |  -19.464 |
-|   1 | 36-13           | 38432670.387 |  3738432.009 | -109.968 |
-|   2 | 36-15           | 38432961.137 |  3739390.729 |  -255.25 |
-|   3 | 36-18           | 38433413.450 |  3740886.340 |  -461.52 |
-|   4 | 36-20           | 38432728.510 |  3738658.130 | -156.142 |
-|   5 | 36-21           | 38432847.630 |  3738981.400 |  -219.41 |
-|   6 | 36-25           | 38433085.450 |  3740157.770 |  -334.25 |
-|   7 | 37-12           | 38432534.310 |  3739339.359 |   -269.3 |
-|   8 | 37-13           | 38432687.680 |  3739625.180 | -273.824 |
-|   9 | 37-14           | 38432548.200 |  3740092.690 |  -328.33 |
-|  10 | 37-20           | 38432097.738 |  3738328.293 |  -66.668 |
-|  11 | 37-21           | 38432172.567 |  3738418.048 |  -63.336 |
-|  12 | 37-22           | 38432227.357 |  3738592.209 | -117.546 |
-|  13 | 37-23           | 38432329.597 |  3738738.984 |  -158.36 |
-|  14 | 38-10           | 38431569.007 |  3738245.409 |  -10.696 |
-|  15 | 38-11           | 38431619.750 |  3738389.900 |   -35.34 |
-|  16 | 38-15           | 38431703.504 |  3738726.162 |  -96.673 |
-|  17 | 38-18           | 38431863.227 |  3739212.609 | -213.576 |
-|  18 | 38-22           | 38432406.715 |  3740756.275 |  -428.64 |
-|  19 | 38-23           | 38431933.009 |  3739382.278 | -247.807 |
-|  20 | 38-27           | 38431758.794 |  3738967.820 | -342.312 |
-|  21 | 38-28           | 38431694.715 |  3738554.717 |  -67.797 |
-|  22 | 38'-15          | 38431435.678 |  3738729.436 |  -48.817 |
-|  23 | 39-11           | 38431156.996 |  3738627.286 |   -32.74 |
-|  24 | 39-12           | 38431238.567 |  3738885.209 |  -57.008 |
-|  25 | 39-13           | 38431396.232 |  3739382.452 | -207.302 |
-|  26 | 39-14           | 38431540.090 |  3739834.990 |  -293.99 |
-|  27 | 39-18           | 38431767.244 |  3740489.052 | -411.211 |
-|  28 | 40-14           | 38430759.987 |  3739036.929 |  -60.531 |
-|  29 | 40-24           | 38431498.710 |  3741317.940 |  -542.92 |
-|  30 | 40-29           | 38430907.540 |  3739515.830 |  -176.62 |
-|  31 | 40-30           | 38430829.900 |  3739274.650 |  -104.15 |
-|  32 | 40-31           | 38430720.880 |  3738944.670 |    -48.8 |
-|  33 | 42-13           | 38430293.687 |  3739277.169 |   -94.27 |
-|  34 | 42-14           | 38430590.970 |  3739665.800 | -164.676 |
-|  35 | 42-17           | 38430238.804 |  3739169.160 |  -72.939 |
-|  36 | 42'-14          | 38430015.989 |  3739598.874 | -117.408 |
-|  37 | 42'-15          | 38430133.381 |  3739727.273 |  -156.58 |
-|  38 | 43-8            | 38429562.900 |  3739547.900 |   -69.79 |
-|  39 | 43-10           | 38429670.667 |  3739710.558 |  -116.67 |
-|  40 | 43-11           | 38429739.337 |  3739784.829 |  -129.78 |
-|  41 | 43-13           | 38429981.137 |  3740102.679 | -206.092 |
-|  42 | 39-21           | 38431294.160 |  3739137.010 |   -22.81 |
+1. Add runtime interpolation-method controls:
+   - `set interpolation idw`
+   - `set interpolation directional`
+   - support-panel model control display
+   - rebuild through the existing project rebuild service
 
+2. Move project rebuilds to a background worker:
+   - support panel requests a change
+   - viewer keeps rendering the old model
+   - status shows loading/rebuilding
+   - successful worker result swaps in the new `ProjectState`
+   - failed worker result preserves the old `ProjectState`
+
+3. Harden topology:
+   - more tests for crossing and shared contour networks
+   - polygon orientation and adjacency validation
+   - duplicate/near-duplicate node tolerance review
+
+4. Improve dataset workflow:
+   - support-panel path entry
+   - clearer validation for missing columns and malformed CSV rows
+   - recent dataset path display
+
+## Future Work
+
+- Layer opacity by simulated color blending against the app background.
+- Terrain low-resolution mode while panning and full-resolution redraw after interaction stops.
+- Contour smoothing.
+- Topology file export.
+- Additional layer controls for ordering and styling.
+- More robust large-dataset performance profiling.
+- Optional GUI front end after the terminal workflow and algorithms are stable.
+
+## Current Data
+
+The included dataset is `data/initial_coords.csv`, with 43 sampled points and columns:
+
+```text
+No.,Data point name,x_coord,y_coord,z_coord
+```
+
+Coordinates are normalized for display by shifting x/y so the minimum x and y become zero. Original z values are preserved.

@@ -84,6 +84,42 @@ def test_grid_model_set_node_value_rejects_out_of_bounds_node():
         grid.set_node_value(2, 0, 9.5)
 
 
+def test_grid_model_value_at_bilinearly_interpolates_world_point():
+    grid = GridModel(
+        x_min=0.0,
+        y_min=0.0,
+        x_max=10.0,
+        y_max=10.0,
+        x_divisions=1,
+        y_divisions=1,
+        node_values=[
+            [10.0, 20.0],
+            [30.0, 40.0],
+        ],
+    )
+
+    assert grid.value_at(5.0, 5.0) == pytest.approx(25.0)
+    assert grid.value_at(10.0, 10.0) == pytest.approx(40.0)
+
+
+def test_grid_model_value_at_rejects_points_outside_bounds():
+    grid = GridModel(
+        x_min=0.0,
+        y_min=0.0,
+        x_max=10.0,
+        y_max=10.0,
+        x_divisions=1,
+        y_divisions=1,
+        node_values=[
+            [10.0, 20.0],
+            [30.0, 40.0],
+        ],
+    )
+
+    with pytest.raises(ValueError, match="outside grid bounds"):
+        grid.value_at(11.0, 5.0)
+
+
 def test_densify_grid_model_handles_non_square_grid():
     grid = GridModel(
         x_min=0.0,

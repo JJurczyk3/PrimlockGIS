@@ -1,9 +1,19 @@
 import pytest
 
 from primelock_gis.core.geometry import Point
+from primelock_gis.core.models.grid import GridModel
 from primelock_gis.core.rendering.viewport import Viewport
-from primelock_gis.core.rendering.scene import DrawablePoint, DrawablePolyline, Scene
-from primelock_gis.core.rendering.symbology import PointStyle, PolylineStyle
+from primelock_gis.core.rendering.scene import (
+    DrawablePoint,
+    DrawablePolyline,
+    DrawableTerrain,
+    Scene,
+)
+from primelock_gis.core.rendering.symbology import (
+    PointStyle,
+    PolylineStyle,
+    TerrainStyle,
+)
 from primelock_gis.ui.terminal.canvas import TerminalCanvas
 from primelock_gis.ui.terminal.capabilities import TerminalCapabilities
 from primelock_gis.ui.terminal.renderer2d import TerminalRenderer2D
@@ -33,6 +43,21 @@ def make_renderer(capabilities=None):
 
 def contains_braille(text: str) -> bool:
     return any(0x2800 <= ord(char) <= 0x28FF for char in text)
+
+
+def make_terrain_grid() -> GridModel:
+    return GridModel(
+        x_min=0.0,
+        y_min=0.0,
+        x_max=100.0,
+        y_max=100.0,
+        x_divisions=1,
+        y_divisions=1,
+        node_values=[
+            [0.0, 10.0],
+            [20.0, 30.0],
+        ],
+    )
 
 
 def test_renderer_clear_resets_canvas():
@@ -77,6 +102,59 @@ def test_render_scene_draws_visible_point():
 
     rows = renderer.to_string().split("\n")
     assert rows[5][5] == "●"
+
+
+def test_draw_terrain_paints_background_cells():
+    renderer = make_renderer(
+        TerminalCapabilities(
+            supports_color=True,
+            supports_truecolor=True,
+        )
+    )
+    terrain = DrawableTerrain(
+        grid=make_terrain_grid(),
+        style=TerrainStyle(
+            low_color="#000010",
+            low_mid_color="#001000",
+            high_mid_color="#101000",
+            high_color="#100000",
+        ),
+    )
+
+    renderer.draw_terrain(terrain)
+
+    assert renderer.canvas.cells[5][5].background is not None
+    assert "\x1b[48;2;" in renderer.to_string()
+
+
+def test_render_scene_draws_points_over_terrain_background():
+    renderer = make_renderer(
+        TerminalCapabilities(
+            supports_color=True,
+            supports_truecolor=True,
+        )
+    )
+    scene = Scene(
+        terrains=[
+            DrawableTerrain(
+                grid=make_terrain_grid(),
+                style=TerrainStyle(),
+            )
+        ],
+        points=[
+            DrawablePoint(
+                position=Point(50, 50),
+                style=PointStyle(char="X", color="#ff0000"),
+            )
+        ],
+    )
+
+    renderer.render_scene(scene)
+
+    cell = renderer.canvas.cells[5][5]
+    assert cell.char == "X"
+    assert cell.foreground == "#ff0000"
+    assert cell.background is not None
 
 
 def test_draw_point_on_world_max_boundary_stays_on_canvas():

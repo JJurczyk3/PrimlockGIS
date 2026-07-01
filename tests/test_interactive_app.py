@@ -291,9 +291,19 @@ def test_support_layers_summary_reports_visibility():
     response = app.handle_support_command("layers summary")
 
     assert response == (
-        "OK: points=on grid=off tin=on contours=off contour_labels=off "
+        "OK: points=on terrain=off grid=off tin=on contours=off contour_labels=off "
         "contour_source=grid contour_interval=50"
     )
+
+
+def test_support_command_toggles_terrain_layer():
+    app = make_app()
+
+    response = app.handle_support_command("toggle terrain")
+
+    assert response == "OK: Terrain visible"
+    assert app.state.show_terrain is True
+    assert "terrain=on" in app.handle_support_command("layers summary")
 
 
 def test_status_instruction_and_info_are_separate_rows():
@@ -323,6 +333,15 @@ def test_build_scene_rebuilds_cached_scene_when_layer_visibility_changes():
 
     assert updated_scene is not scene
     assert app.scene_cache is updated_scene
+
+
+def test_b_key_toggles_terrain():
+    app = make_app()
+
+    app.handle_key("b")
+
+    assert app.state.show_terrain is True
+    assert app.state.status_message == "Terrain visible"
 
 
 def test_c_key_toggles_contours():
@@ -413,6 +432,20 @@ def test_grid_layer_keeps_solid_line_style():
 
     assert scene.polylines
     assert {polyline.style.line_type for polyline in scene.polylines} == {"solid"}
+
+
+def test_build_scene_includes_terrain_when_enabled():
+    app = make_app()
+    app.state.show_points = False
+    app.state.show_grid = False
+    app.state.show_tin = False
+    app.state.show_terrain = True
+
+    scene = app.build_scene()
+
+    assert len(scene.terrains) == 1
+    assert scene.polylines == []
+    assert scene.points == []
 
 
 def test_plus_key_zooms_in_around_view_center():

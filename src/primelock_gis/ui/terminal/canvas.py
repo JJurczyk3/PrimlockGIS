@@ -55,6 +55,7 @@ ANSI_BASIC_COLORS = [
 class TerminalCell:
     char: str = " "
     foreground: str | None = None
+    background: str | None = None
     line_edges: set[Direction] = field(default_factory=set)
     line_color: str | None = None
     line_style: str | None = None
@@ -66,9 +67,11 @@ class TerminalCell:
         self,
         char: str,
         foreground: str | None = None,
+        background: str | None = None,
     ) -> None:
         self.char = safe_cell_char(char)
         self.foreground = foreground
+        self.background = background
         self.line_edges.clear()
         self.line_color = None
         self.line_style = None
@@ -150,6 +153,9 @@ class TerminalCell:
             return self.line_color
         return self.foreground
 
+    def render_background(self) -> str | None:
+        return self.background
+
 
 @dataclass
 class TerminalCanvas:
@@ -194,12 +200,27 @@ class TerminalCanvas:
         y: int,
         char: str,
         foreground: str | None = None,
+        background: str | None = None,
+        preserve_background: bool = True,
     ) -> None:
         if not char:
             return
 
         if 0 <= x < self.width and 0 <= y < self.height:
-            self.cells[y][x].reset(char, foreground)
+            if preserve_background and background is None:
+                background = self.cells[y][x].background
+            self.cells[y][x].reset(char, foreground, background)
+
+    def set_background_cell(
+        self,
+        x: int,
+        y: int,
+        background: str | None,
+        char: str = " ",
+    ) -> None:
+        """Set one cell's background while leaving it available for overlays."""
+        if 0 <= x < self.width and 0 <= y < self.height:
+            self.cells[y][x].reset(char, background=background)
 
     # Write one mergeable line fragment to a terminal cell.
     def set_line_cell(
@@ -269,22 +290,35 @@ class TerminalCanvas:
 
         for row in self.cells:
             rendered = []
-            active_color = None
+            active_foreground = None
+            active_background = None
 
             for cell in row:
                 color = cell.render_color()
+                background = cell.render_background()
                 color_code = color_to_ansi(color, capabilities)
+                background_code = color_to_ansi(
+                    background,
+                    capabilities,
+                    background=True,
+                )
 
-                if color_code != active_color:
-                    if active_color is not None:
+                if (
+                    color_code != active_foreground
+                    or background_code != active_background
+                ):
+                    if active_foreground is not None or active_background is not None:
                         rendered.append("\x1b[0m")
+                    if background_code is not None:
+                        rendered.append(background_code)
                     if color_code is not None:
                         rendered.append(color_code)
-                    active_color = color_code
+                    active_foreground = color_code
+                    active_background = background_code
 
                 rendered.append(cell.render_char(supports_unicode, supports_braille))
 
-            if active_color is not None:
+            if active_foreground is not None or active_background is not None:
                 rendered.append("\x1b[0m")
 
             rows.append("".join(rendered))
@@ -321,7 +355,11 @@ def clip_text_to_width(text: str, available_width: int) -> str:
         return text[:available_width]
 
 
-def color_to_ansi(color: str | None, capabilities=None) -> str | None:
+def color_to_ansi(
+    color: str | None,
+    capabilities=None,
+    background: bool = False,
+) -> str | None:
     """Return an ANSI foreground sequence for a colour and terminal capability."""
     if color is None:
         return None
@@ -334,7 +372,12 @@ def color_to_ansi(color: str | None, capabilities=None) -> str | None:
         capabilities is not None
         and capabilities.supports_truecolor
     )
-    return _color_to_ansi_cached(color, supports_color, supports_truecolor)
+    return _color_to_ansi_cached(
+        color,
+        supports_color,
+        supports_truecolor,
+        background,
+    )
 
 
 @lru_cache(maxsize=256)
@@ -342,6 +385,7 @@ def _color_to_ansi_cached(
     color: str,
     supports_color: bool,
     supports_truecolor: bool,
+    background: bool,
 ) -> str | None:
     """Return a cached ANSI colour sequence for repeated style colours."""
     if not supports_color:
@@ -353,9 +397,12 @@ def _color_to_ansi_cached(
 
     red, green, blue = rgb
     if supports_truecolor:
-        return f"\x1b[38;2;{red};{green};{blue}m"
+        prefix = 48 if background else 38
+        return f"\x1b[{prefix};2;{red};{green};{blue}m"
 
     ansi_code = nearest_basic_ansi_color(red, green, blue)
+    if background:
+        ansi_code += 10
     return f"\x1b[{ansi_code}m"
 
 

@@ -3,6 +3,7 @@
 from primelock_gis.core.rendering.renderer_base import RendererBase
 from primelock_gis.core.rendering.viewport import Viewport
 from primelock_gis.core.rendering.scene import (
+    DrawableTerrain,
     DrawablePoint,
     DrawablePolyline,
     DrawablePolygon,
@@ -10,6 +11,7 @@ from primelock_gis.core.rendering.scene import (
     Scene,
 )
 from primelock_gis.ui.terminal.canvas import TerminalCanvas
+from primelock_gis.ui.terminal.canvas import parse_hex_color
 from primelock_gis.ui.terminal.capabilities import TerminalCapabilities
 from primelock_gis.core.geometry import Point
 
@@ -39,6 +41,35 @@ class TerminalRenderer2D(RendererBase):
     
     def clear(self) -> None:
         self.canvas.clear()
+
+    def draw_terrain(self, drawable: DrawableTerrain) -> None:
+        """Render a grid-backed terrain colour layer as cell backgrounds."""
+        grid = drawable.grid
+        if not self._grid_intersects_view(grid):
+            return
+
+        value_min = min(min(row) for row in grid.node_values)
+        value_max = max(max(row) for row in grid.node_values)
+
+        for cell_y in range(self.canvas.height):
+            for cell_x in range(self.canvas.width):
+                world_point = self.viewport.view_to_world(cell_x + 0.5, cell_y + 0.5)
+                if not grid.contains_xy(world_point.x, world_point.y):
+                    continue
+
+                value = grid.value_at(world_point.x, world_point.y)
+                color = self._terrain_color(
+                    value,
+                    value_min,
+                    value_max,
+                    drawable.style,
+                )
+                self.canvas.set_background_cell(
+                    cell_x,
+                    cell_y,
+                    color,
+                    char=drawable.style.char,
+                )
 
     # Render points
     def draw_point(self, drawable: DrawablePoint) -> None:
@@ -121,6 +152,53 @@ class TerminalRenderer2D(RendererBase):
             or max_y < self.viewport.world_min_y
             or min_y > self.viewport.world_max_y
         )
+
+    def _grid_intersects_view(self, grid) -> bool:
+        return not (
+            grid.x_max < self.viewport.world_min_x
+            or grid.x_min > self.viewport.world_max_x
+            or grid.y_max < self.viewport.world_min_y
+            or grid.y_min > self.viewport.world_max_y
+        )
+
+    def _terrain_color(self, value: float, value_min: float, value_max: float, style) -> str:
+        if value_max == value_min:
+            return style.low_mid_color
+
+        t = (value - value_min) / (value_max - value_min)
+        t = max(0.0, min(1.0, t))
+
+        stops = (
+            (0.0, style.low_color),
+            (0.35, style.low_mid_color),
+            (0.7, style.high_mid_color),
+            (1.0, style.high_color),
+        )
+
+        for index in range(len(stops) - 1):
+            start_t, start_color = stops[index]
+            end_t, end_color = stops[index + 1]
+            if start_t <= t <= end_t:
+                local_t = (t - start_t) / (end_t - start_t)
+                return self._interpolate_hex_color(start_color, end_color, local_t)
+
+        return style.high_color
+
+    def _interpolate_hex_color(
+        self,
+        start_color: str,
+        end_color: str,
+        t: float,
+    ) -> str:
+        start_rgb = parse_hex_color(start_color)
+        end_rgb = parse_hex_color(end_color)
+        if start_rgb is None or end_rgb is None:
+            return start_color
+
+        red = round(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * t)
+        green = round(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * t)
+        blue = round(start_rgb[2] + (end_rgb[2] - start_rgb[2]) * t)
+        return f"#{red:02X}{green:02X}{blue:02X}"
     
     # Convert world coordinates of a single point to screen coordinates.
     def _world_point_to_cell(self, point: Point) -> tuple[int, int]:

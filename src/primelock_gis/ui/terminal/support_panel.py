@@ -551,6 +551,7 @@ class SupportPanelApp:
 
         actions = [
             ("Toggle Points", "command:toggle points"),
+            ("Toggle Terrain", "command:toggle terrain"),
             ("Toggle Grid", "command:toggle grid"),
             ("Toggle TIN", "command:toggle tin"),
             ("Toggle Contours", "command:toggle contours"),
@@ -765,7 +766,7 @@ class SupportPanelApp:
             "",
             "Viewer controls stay in the viewer terminal:",
             "h/j/k/l pan, +/- zoom, mouse drag pan.",
-            "c contours, m contour source, v labels, [/] interval.",
+            "b terrain, c contours, m contour source, v labels, [/] interval.",
             "",
             "Admin: viewer status, quit viewer, restart viewer, summary.",
             "Model admin: set grid 30 30, load dataset path.csv, reload dataset.",
@@ -867,6 +868,8 @@ class SupportPanelApp:
     def _layer_name_for_action(self, action: str) -> str:
         if action.endswith("toggle points"):
             return "points"
+        if action.endswith("toggle terrain"):
+            return "terrain"
         if action.endswith("toggle grid"):
             return "grid"
         if action.endswith("toggle tin"):

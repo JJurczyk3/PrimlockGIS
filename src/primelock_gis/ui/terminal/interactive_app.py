@@ -23,9 +23,14 @@ from primelock_gis.core.rendering.scene_builder import (
     contour_polylines_to_scene,
     grid_to_scene,
     points_to_scene,
+    terrain_to_scene,
     tin_to_scene,
 )
-from primelock_gis.core.rendering.symbology import PointStyle, PolylineStyle
+from primelock_gis.core.rendering.symbology import (
+    PointStyle,
+    PolylineStyle,
+    TerrainStyle,
+)
 from primelock_gis.core.rendering.viewport import Viewport
 from primelock_gis.core.rendering.viewport_builder import initial_viewport_from_points
 from primelock_gis.ui.terminal.capabilities import TerminalCapabilities
@@ -76,6 +81,7 @@ class InteractiveState:
     running: bool = True
     interaction_mode: str = "normal"
     show_points: bool = True
+    show_terrain: bool = False
     show_grid: bool = False
     show_tin: bool = True
     show_contours: bool = False
@@ -125,6 +131,7 @@ class InteractiveTerminalApp:
             bool,
             bool,
             bool,
+            bool,
             str,
             float,
         ] | None = None
@@ -141,6 +148,18 @@ class InteractiveTerminalApp:
             return self.scene_cache
 
         scene = Scene()
+
+        if self.state.show_terrain:
+            terrain_scene = terrain_to_scene(
+                self.project_state.idw_grid,
+                style=TerrainStyle(
+                    low_color=TERMINAL_THEME.terrain_low,
+                    low_mid_color=TERMINAL_THEME.terrain_low_mid,
+                    high_mid_color=TERMINAL_THEME.terrain_high_mid,
+                    high_color=TERMINAL_THEME.terrain_high,
+                ),
+            )
+            self._merge_scene(scene, terrain_scene)
 
         if self.state.show_grid:
             grid_scene = grid_to_scene(
@@ -213,6 +232,14 @@ class InteractiveTerminalApp:
             self.state.status_message = self._visibility_status(
                 "Grid",
                 self.state.show_grid,
+            )
+            return
+
+        if key == "b":
+            self.state.show_terrain = not self.state.show_terrain
+            self.state.status_message = self._visibility_status(
+                "Terrain",
+                self.state.show_terrain,
             )
             return
 
@@ -409,8 +436,9 @@ class InteractiveTerminalApp:
     def status_instruction_text(self) -> str:
         """Return the controls row for the bottom status area."""
         return (
-            "q quit | g grid | t TIN | p points | c contours | m source | "
+            "q quit | b terrain | g grid | t TIN | p points | c contours | m source | "
             "v labels | [/] interval | r reset | hjkl pan | +/- zoom "
+            f"| terrain={self.state.show_terrain} "
             f"| grid={self.state.show_grid} "
             f"| tin={self.state.show_tin} "
             f"| points={self.state.show_points} "
@@ -427,6 +455,7 @@ class InteractiveTerminalApp:
 
     def _merge_scene(self, target: Scene, source: Scene) -> None:
         """Merge one scene into another scene."""
+        target.terrains.extend(source.terrains)
         target.polygons.extend(source.polygons)
         target.polylines.extend(source.polylines)
         target.points.extend(source.points)
@@ -434,9 +463,10 @@ class InteractiveTerminalApp:
 
     def _scene_visibility_cache_key(
         self,
-    ) -> tuple[bool, bool, bool, bool, bool, str, float]:
+    ) -> tuple[bool, bool, bool, bool, bool, bool, str, float]:
         """Return the state values that affect the static rendered scene."""
         return (
+            self.state.show_terrain,
             self.state.show_grid,
             self.state.show_tin,
             self.state.show_points,
@@ -919,6 +949,7 @@ class InteractiveTerminalApp:
             return (
                 "OK: "
                 f"points={'on' if self.state.show_points else 'off'} "
+                f"terrain={'on' if self.state.show_terrain else 'off'} "
                 f"grid={'on' if self.state.show_grid else 'off'} "
                 f"tin={'on' if self.state.show_tin else 'off'} "
                 f"contours={'on' if self.state.show_contours else 'off'} "
@@ -928,6 +959,24 @@ class InteractiveTerminalApp:
                 f"contour_interval={self.state.contour_interval:g}"
             )
         
+        if parts == ["show", "terrain"]:
+            self.state.show_terrain = True
+            self.state.status_message = "Terrain visible"
+            return f"OK: {self.state.status_message}"
+
+        if parts == ["hide", "terrain"]:
+            self.state.show_terrain = False
+            self.state.status_message = "Terrain hidden"
+            return f"OK: {self.state.status_message}"
+
+        if parts == ["toggle", "terrain"]:
+            self.state.show_terrain = not self.state.show_terrain
+            self.state.status_message = self._visibility_status(
+                "Terrain",
+                self.state.show_terrain,
+            )
+            return f"OK: {self.state.status_message}"
+
         if parts == ["show", "grid"]:
             self.state.show_grid = True
             self.state.status_message = "Grid visible"

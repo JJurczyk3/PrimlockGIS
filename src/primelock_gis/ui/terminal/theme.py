@@ -22,6 +22,10 @@ class TerminalTheme:
     tin: str = "#DDA15E"
     contours: str = "#7DD3FC"
     contour_labels: str = "#BAE6FD"
+    terrain_low: str = "#1E3A8A"
+    terrain_low_mid: str = "#15803D"
+    terrain_high_mid: str = "#EAB308"
+    terrain_high: str = "#DC2626"
 
 
 TERMINAL_THEME = TerminalTheme()

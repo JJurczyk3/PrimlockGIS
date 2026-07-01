@@ -1,21 +1,34 @@
-# Python-generated files
+# Python generated files
 __pycache__/
+*.pyc
+*.pyo
 *.py[oc]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Build and packaging artifacts
 build/
 dist/
 wheels/
-*.egg-info
+*.whl
 
-# Virtual environments
-.venv
-.venv/
+# Operating system and archive noise
+.DS_Store
+__MACOSX/
+Archive.zip
 
-# Environment variables
+# Local environments and editor state
 .env
+.env.*
+.venv/
+venv/
+env/
+.idea/
+.vscode/
 
-# Poetry lock file
+# Local uv cache/lock state for this coursework workspace
 uv.lock
 
-# PDF documents
-.pdf
-高级地理信息系统课程讲义2026-北京大学毛善君.pdf
+# Large local reference documents
+*.pdf
