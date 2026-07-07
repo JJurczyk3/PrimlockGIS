@@ -7,27 +7,23 @@ from dataclasses import dataclass, field
 
 from primelock_gis.core.geometry import Point
 from primelock_gis.core.models.grid import GridModel
+from primelock_gis.core.models.tin import TinModel
 from .symbology import (
     PointStyle,
     PolylineStyle,
-    FillStyle,
     TextStyle,
     TerrainStyle,
 )
 
+TerrainSurface = GridModel | TinModel
+
 
 @dataclass
 class DrawableTerrain:
-    grid: GridModel
+    surface: TerrainSurface
     style: TerrainStyle
+    source: str = "grid"
     layer: str = "terrain"
-    visible: bool = True
-
-@dataclass
-class DrawablePolygon:
-    points: list[Point]
-    style: FillStyle
-    layer: str = "default"
     visible: bool = True
 
 @dataclass
@@ -55,7 +51,6 @@ class DrawableText:
 @dataclass
 class Scene:
     terrains: list[DrawableTerrain] = field(default_factory=list)
-    polygons: list[DrawablePolygon] = field(default_factory=list)
     polylines: list[DrawablePolyline] = field(default_factory=list)
     points: list[DrawablePoint] = field(default_factory=list)
     texts: list[DrawableText] = field(default_factory=list)

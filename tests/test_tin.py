@@ -145,6 +145,44 @@ def test_tin_model_returns_vertex_triangle_and_edge_indexes():
     assert manual_tin.unique_edge_keys() == {(0, 1), (1, 2), (0, 2)}
 
 
+def test_tin_model_samples_value_inside_triangle():
+    vertices = [
+        TinVertex(id=0, x=0.0, y=0.0, z=10.0),
+        TinVertex(id=1, x=10.0, y=0.0, z=20.0),
+        TinVertex(id=2, x=0.0, y=10.0, z=30.0),
+    ]
+    tin = TinModel(
+        vertices=vertices,
+        triangles=[
+            TinTriangle(id=0, vertex_ids=(0, 1, 2)),
+        ],
+    )
+
+    assert tin.bounds() == (0.0, 0.0, 10.0, 10.0)
+    assert tin.value_range() == (10.0, 30.0)
+    assert tin.contains_xy(2.0, 3.0)
+    assert tin.sample_at(2.0, 3.0) == pytest.approx(18.0)
+    assert tin.value_at(2.0, 3.0) == pytest.approx(18.0)
+
+
+def test_tin_model_rejects_value_outside_triangles():
+    tin = TinModel(
+        vertices=[
+            TinVertex(id=0, x=0.0, y=0.0, z=10.0),
+            TinVertex(id=1, x=10.0, y=0.0, z=20.0),
+            TinVertex(id=2, x=0.0, y=10.0, z=30.0),
+        ],
+        triangles=[
+            TinTriangle(id=0, vertex_ids=(0, 1, 2)),
+        ],
+    )
+
+    assert not tin.contains_xy(9.0, 9.0)
+    assert tin.sample_at(9.0, 9.0) is None
+    with pytest.raises(ValueError, match="outside TIN bounds"):
+        tin.value_at(9.0, 9.0)
+
+
 def test_remove_super_triangle_triangles_removes_artificial_vertices():
     triangles = [
         TinTriangle(id=0, vertex_ids=(-1, 0, 1)),

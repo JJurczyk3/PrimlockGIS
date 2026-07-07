@@ -8,7 +8,6 @@ will implement these methods.
 from .scene import (
     Scene,
     DrawableTerrain,
-    DrawablePolygon,
     DrawablePolyline,
     DrawablePoint,
     DrawableText,
@@ -20,9 +19,6 @@ class RendererBase:
 
     def clear(self) -> None:
         raise NotImplementedError("clear() must be implemented by subclasses")
-
-    def draw_polygon(self, drawable: DrawablePolygon) -> None:
-        raise NotImplementedError("draw_polygon() must be implemented by subclasses")
 
     def draw_terrain(self, drawable: DrawableTerrain) -> None:
         raise NotImplementedError("draw_terrain() must be implemented by subclasses")
@@ -43,10 +39,6 @@ class RendererBase:
         for terrain in scene.terrains:
             if terrain.visible:
                 self.draw_terrain(terrain)
-
-        for polygon in scene.polygons:
-            if polygon.visible:
-                self.draw_polygon(polygon)
 
         for polyline in scene.polylines:
             if polyline.visible:

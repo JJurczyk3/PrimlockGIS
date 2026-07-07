@@ -17,12 +17,6 @@ class PolylineStyle:
     line_type: str = "literal"
 
 @dataclass
-class FillStyle:
-    color: str = "#FFFFFF"
-    outline_color: str = "#000000"
-    char: str = " "
-
-@dataclass
 class TextStyle:
     color: str = "#000000"
     height: float = 10.0
@@ -33,4 +27,6 @@ class TerrainStyle:
     low_mid_color: str = "#15803D"
     high_mid_color: str = "#EAB308"
     high_color: str = "#DC2626"
+    opacity: float = 1.0
+    background_color: str = "#0B1020"
     char: str = " "

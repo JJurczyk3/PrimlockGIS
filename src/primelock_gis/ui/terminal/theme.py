@@ -7,6 +7,7 @@ from primelock_gis.ui.terminal.canvas import color_to_ansi
 
 @dataclass(frozen=True)
 class TerminalTheme:
+    background: str = "#0B1020"
     foreground: str = "#E6EDF3"
     muted: str = "#8B949E"
     frame: str = "#6E7681"

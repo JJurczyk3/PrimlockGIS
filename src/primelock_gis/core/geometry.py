@@ -162,48 +162,6 @@ def polygon_signed_area(points: list[Point]) -> float:
     return total / 2
 
 
-# Return the area of the polygon defined by the list of points
-def polygon_area(points):
-    return abs(polygon_signed_area(points))
-
-
-# Return the length of a polyline defined by the list of points
-def polyline_length(points):
-    total = 0.0
-
-    for i in range(len(points) - 1):
-        total += distance(points[i], points[i + 1])
-
-    return total
-
-
-# Return True if point p is inside the polygon defined by the list of points, False otherwise
-def point_in_polygon(p, polygon, eps=EPS):
-    if len(polygon) < 3:
-        return False
-
-    inside = False
-
-    for i in range(len(polygon)):
-        a = polygon[i]
-        b = polygon[(i + 1) % len(polygon)]
-
-        # Treat points on the boundary as inside
-        if point_on_segment(p, a, b, eps):
-            return True
-
-        # Check whether the horizontal ray to the right crosses this edge
-        crosses_ray = (a.y > p.y) != (b.y > p.y)
-
-        if crosses_ray:
-            x_intersection = a.x + (p.y - a.y) * (b.x - a.x) / (b.y - a.y)
-
-            if x_intersection > p.x:
-                inside = not inside
-
-    return inside
-
-
 def distance_squared(a: Point, b: Point) -> float:
     dx = a.x - b.x
     dy = a.y - b.y

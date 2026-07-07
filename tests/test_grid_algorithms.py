@@ -98,6 +98,7 @@ def test_grid_model_value_at_bilinearly_interpolates_world_point():
         ],
     )
 
+    assert grid.sample_at(5.0, 5.0) == pytest.approx(25.0)
     assert grid.value_at(5.0, 5.0) == pytest.approx(25.0)
     assert grid.value_at(10.0, 10.0) == pytest.approx(40.0)
 
@@ -116,6 +117,7 @@ def test_grid_model_value_at_rejects_points_outside_bounds():
         ],
     )
 
+    assert grid.sample_at(11.0, 5.0) is None
     with pytest.raises(ValueError, match="outside grid bounds"):
         grid.value_at(11.0, 5.0)
 

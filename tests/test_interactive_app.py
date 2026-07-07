@@ -157,29 +157,12 @@ def test_vim_vertical_key_pans_by_one_terminal_cell():
     assert app.state.status_message == "Panned up"
 
 
-def test_debug_key_is_not_a_viewer_shortcut():
+def test_d_key_is_not_a_viewer_shortcut():
     app = make_app()
 
     app.handle_key("d")
 
-    assert app.state.debug_input_enabled is False
     assert app.state.status_message == "Unknown key: 'd'"
-
-
-def test_support_debug_input_commands_poll_raw_input_sequences():
-    app = make_app()
-
-    start_response = app.handle_support_command("debug input start")
-    app.handle_event(KeyEvent("x", raw_sequence="x"))
-    poll_response = app.handle_support_command("debug input poll")
-    empty_response = app.handle_support_command("debug input poll")
-    stop_response = app.handle_support_command("debug input stop")
-
-    assert start_response == "OK: input debug enabled"
-    assert poll_response == "OK: input Input debug: KeyEvent raw=x"
-    assert empty_response == "OK: no input"
-    assert stop_response == "OK: input debug disabled"
-    assert app.state.debug_input_enabled is False
 
 
 def test_support_commands_set_mode_and_report_selected_feature():
@@ -292,7 +275,8 @@ def test_support_layers_summary_reports_visibility():
 
     assert response == (
         "OK: points=on terrain=off grid=off tin=on contours=off contour_labels=off "
-        "contour_source=grid contour_interval=50"
+        "contour_source=grid contour_interval=50 terrain_source=grid "
+        "terrain_opacity=1 terrain_palette=elevation"
     )
 
 
@@ -306,11 +290,46 @@ def test_support_command_toggles_terrain_layer():
     assert "terrain=on" in app.handle_support_command("layers summary")
 
 
+def test_support_commands_configure_terrain_style():
+    app = make_app()
+
+    assert app.handle_support_command("terrain opacity 0.6") == (
+        "OK: Terrain opacity: 60%"
+    )
+    assert app.handle_support_command("terrain colour heat") == (
+        "OK: Terrain palette: heat"
+    )
+    assert app.handle_support_command("cycle terrain palette") == (
+        "OK: Terrain palette: elevation"
+    )
+    summary = app.handle_support_command("terrain summary")
+
+    assert app.state.terrain_opacity == pytest.approx(0.6)
+    assert app.state.terrain_palette == "elevation"
+    assert summary == "OK: source=grid, palette=elevation, opacity=0.6"
+
+
+def test_support_commands_reject_invalid_terrain_style():
+    app = make_app()
+
+    assert app.handle_support_command("terrain opacity opaque") == (
+        "ERROR: terrain opacity must be a number"
+    )
+    assert app.handle_support_command("terrain opacity 150") == (
+        "ERROR: terrain opacity must be between 0 and 1"
+    )
+    assert app.handle_support_command("terrain palette neon") == (
+        "ERROR: terrain palette must be one of elevation, grayscale, heat"
+    )
+
+
 def test_status_instruction_and_info_are_separate_rows():
     app = make_app()
     app.state.status_message = "Selected feature details"
 
     assert "q quit" in app.status_instruction_text()
+    assert "interval=50" in app.status_instruction_text()
+    assert "v labels | r reset" in app.status_instruction_text()
     assert "Selected feature details" not in app.status_instruction_text()
     assert app.status_info_text() == "Selected feature details"
 
@@ -371,14 +390,16 @@ def test_v_key_toggles_contour_labels():
     assert app.state.status_message == "Contour labels visible"
 
 
-def test_bracket_keys_change_contour_interval():
+def test_bracket_keys_are_not_viewer_shortcuts():
     app = make_app()
 
     app.handle_key("[")
-    assert app.state.contour_interval == pytest.approx(25.0)
+    assert app.state.contour_interval == pytest.approx(50.0)
+    assert app.state.status_message == "Unknown key: '['"
 
     app.handle_key("]")
     assert app.state.contour_interval == pytest.approx(50.0)
+    assert app.state.status_message == "Unknown key: ']'"
 
 
 def test_build_scene_includes_grid_contours_when_enabled():
@@ -444,8 +465,37 @@ def test_build_scene_includes_terrain_when_enabled():
     scene = app.build_scene()
 
     assert len(scene.terrains) == 1
+    assert scene.terrains[0].source == "grid"
+    assert scene.terrains[0].surface is app.project_state.idw_grid
     assert scene.polylines == []
     assert scene.points == []
+
+
+def test_build_scene_uses_tin_terrain_when_contour_source_is_tin():
+    app = make_app()
+    app.state.show_points = False
+    app.state.show_grid = False
+    app.state.show_tin = False
+    app.state.show_terrain = True
+    app.state.contour_source = "tin"
+
+    scene = app.build_scene()
+
+    assert len(scene.terrains) == 1
+    assert scene.terrains[0].source == "tin"
+    assert scene.terrains[0].surface is app.project_state.tin
+
+
+def test_build_scene_rebuilds_cached_scene_when_terrain_style_changes():
+    app = make_app()
+    app.state.show_terrain = True
+    scene = app.build_scene()
+
+    app.handle_support_command("terrain opacity 0.5")
+    updated_scene = app.build_scene()
+
+    assert updated_scene is not scene
+    assert updated_scene.terrains[0].style.opacity == pytest.approx(0.5)
 
 
 def test_plus_key_zooms_in_around_view_center():

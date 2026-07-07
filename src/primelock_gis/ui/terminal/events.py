@@ -18,10 +18,4 @@ class MouseEvent:
     raw_sequence: str | None = field(default=None, compare=False)
 
 
-@dataclass
-class ResizeEvent:
-    width: int
-    height: int
-
-
-TerminalEvent = KeyEvent | MouseEvent | ResizeEvent
+TerminalEvent = KeyEvent | MouseEvent

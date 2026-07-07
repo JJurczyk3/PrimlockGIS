@@ -61,10 +61,19 @@ class GridModel:
         """Return True if a world coordinate lies inside the grid bounds."""
         return self.x_min <= x <= self.x_max and self.y_min <= y <= self.y_max
 
-    def value_at(self, x: float, y: float) -> float:
-        """Return a bilinearly interpolated grid value at a world coordinate."""
+    def bounds(self) -> tuple[float, float, float, float]:
+        """Return x/y bounds as x_min, y_min, x_max, y_max."""
+        return self.x_min, self.y_min, self.x_max, self.y_max
+
+    def value_range(self) -> tuple[float, float]:
+        """Return the minimum and maximum stored node values."""
+        values = [value for row in self.node_values for value in row]
+        return min(values), max(values)
+
+    def sample_at(self, x: float, y: float) -> float | None:
+        """Return a bilinearly interpolated value or None outside the grid."""
         if not self.contains_xy(x, y):
-            raise ValueError("Point is outside grid bounds")
+            return None
 
         col = min(
             self.x_divisions - 1,
@@ -88,6 +97,14 @@ class GridModel:
             + z01 * (1 - u) * v
             + z11 * u * v
         )
+
+    def value_at(self, x: float, y: float) -> float:
+        """Return a bilinearly interpolated grid value at a world coordinate."""
+        value = self.sample_at(x, y)
+        if value is None:
+            raise ValueError("Point is outside grid bounds")
+
+        return value
 
     def _validate_node_indices(self, row: int, col: int) -> None:
         if row < 0 or row > self.y_divisions:

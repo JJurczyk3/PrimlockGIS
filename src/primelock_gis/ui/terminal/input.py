@@ -106,19 +106,6 @@ def read_terminal_event(timeout: float = 0.05) -> TerminalEvent | None:
     return parse_input_sequence(sequence)
 
 
-def read_key_event(timeout: float = 0.05) -> KeyEvent | None:
-    """Read one key event if available.
-
-    Kept for callers that only understand keyboard input.
-    """
-    event = read_terminal_event(timeout)
-
-    if isinstance(event, KeyEvent):
-        return event
-
-    return None
-
-
 def _read_escape_suffix(max_chars: int = 32) -> str:
     suffix = ""
 

@@ -73,6 +73,13 @@ class SupportPanelState:
     dataset_path: str = "unknown"
     grid_x_divisions: int = 20
     grid_y_divisions: int = 20
+    grid_input_focus: str | None = None
+    grid_x_input: str = ""
+    grid_y_input: str = ""
+    grid_input_replace_on_type: bool = False
+    terrain_opacity: float = 1.0
+    terrain_palette: str = "elevation"
+    terrain_source: str = "grid"
 
 
 class CommandServer(socketserver.ThreadingTCPServer):
@@ -222,11 +229,7 @@ class SupportPanelApp:
                 self.state.status = response
 
         if self.state.mode == "layers":
-            response = self.send("layers summary")
-            if response.startswith("OK: "):
-                self.state.layer_summary = response.removeprefix("OK: ")
-            elif response.startswith("ERROR: "):
-                self.state.status = response
+            self._refresh_layers()
 
         if self.state.mode in ("model", "dataset"):
             self._refresh_config()
@@ -308,6 +311,9 @@ class SupportPanelApp:
             self.handle_admin_key(key)
             return
 
+        if self.state.mode == "model" and self.handle_model_key(key):
+            return
+
         if key == "q":
             self.state.running = False
             return
@@ -343,6 +349,46 @@ class SupportPanelApp:
         if len(key) == 1 and key.isprintable():
             self.state.command_buffer += key
 
+    def handle_model_key(self, key: str) -> bool:
+        """Handle typed grid-division input inside Model mode."""
+        if self.state.grid_input_focus is None:
+            if key == "x":
+                self._focus_grid_input("x")
+                return True
+            if key == "y":
+                self._focus_grid_input("y")
+                return True
+            if key in ("\r", "\n") and (
+                self.state.grid_x_input or self.state.grid_y_input
+            ):
+                self._apply_grid_input()
+                return True
+            return False
+
+        if key == "escape":
+            self._cancel_grid_input()
+            return True
+
+        if key == "\t":
+            self._focus_grid_input(
+                "y" if self.state.grid_input_focus == "x" else "x"
+            )
+            return True
+
+        if key in ("\r", "\n"):
+            self._apply_grid_input()
+            return True
+
+        if key in ("\x7f", "\b"):
+            self._backspace_grid_input()
+            return True
+
+        if len(key) == 1 and key.isdigit():
+            self._append_grid_input_digit(key)
+            return True
+
+        return True
+
     def run_admin_command(self) -> None:
         """Send the current admin-mode command to the viewer."""
         command = self.state.command_buffer.strip()
@@ -358,6 +404,87 @@ class SupportPanelApp:
 
         self._run_admin_command_text(command)
 
+    def _focus_grid_input(self, axis: str) -> None:
+        """Focus one Model-tab grid input field."""
+        if axis not in ("x", "y"):
+            return
+
+        self.state.grid_input_focus = axis
+        if axis == "x" and not self.state.grid_x_input:
+            self.state.grid_x_input = str(self.state.grid_x_divisions)
+            self.state.grid_input_replace_on_type = True
+        elif axis == "y" and not self.state.grid_y_input:
+            self.state.grid_y_input = str(self.state.grid_y_divisions)
+            self.state.grid_input_replace_on_type = True
+        else:
+            self.state.grid_input_replace_on_type = False
+
+    def _cancel_grid_input(self) -> None:
+        """Cancel typed Model-tab grid input."""
+        self.state.grid_input_focus = None
+        self.state.grid_x_input = ""
+        self.state.grid_y_input = ""
+        self.state.grid_input_replace_on_type = False
+        self.state.status = "OK: grid input cancelled"
+
+    def _backspace_grid_input(self) -> None:
+        """Remove one digit from the focused grid input."""
+        if self.state.grid_input_focus == "x":
+            value = self.state.grid_x_input
+            self.state.grid_x_input = (
+                "" if self.state.grid_input_replace_on_type else value[:-1]
+            )
+        elif self.state.grid_input_focus == "y":
+            value = self.state.grid_y_input
+            self.state.grid_y_input = (
+                "" if self.state.grid_input_replace_on_type else value[:-1]
+            )
+
+        self.state.grid_input_replace_on_type = False
+
+    def _append_grid_input_digit(self, digit: str) -> None:
+        """Append or replace one digit in the focused grid input."""
+        if self.state.grid_input_focus == "x":
+            if self.state.grid_input_replace_on_type:
+                self.state.grid_x_input = digit
+            else:
+                self.state.grid_x_input += digit
+        elif self.state.grid_input_focus == "y":
+            if self.state.grid_input_replace_on_type:
+                self.state.grid_y_input = digit
+            else:
+                self.state.grid_y_input += digit
+
+        self.state.grid_input_replace_on_type = False
+
+    def _apply_grid_input(self) -> None:
+        """Apply typed Model-tab grid divisions through the viewer command."""
+        x_text = self.state.grid_x_input or str(self.state.grid_x_divisions)
+        y_text = self.state.grid_y_input or str(self.state.grid_y_divisions)
+
+        try:
+            x_value = int(x_text)
+            y_value = int(y_text)
+        except ValueError:
+            self.state.status = "ERROR: grid divisions must be integers"
+            return
+
+        if x_value < 1 or y_value < 1:
+            self.state.status = "ERROR: grid divisions must be positive"
+            return
+
+        response = self.send(f"set grid {x_value} {y_value}")
+        self.state.status = response
+
+        if response.startswith("OK: "):
+            self.state.grid_x_divisions = x_value
+            self.state.grid_y_divisions = y_value
+            self.state.grid_input_focus = None
+            self.state.grid_x_input = ""
+            self.state.grid_y_input = ""
+            self.state.grid_input_replace_on_type = False
+            self._refresh_config()
+
     def activate_button(self, action: str) -> None:
         """Run one support-panel button action."""
         if action.startswith("mode:"):
@@ -372,10 +499,19 @@ class SupportPanelApp:
             command = action.split(":", 1)[1]
             response = self.send(command)
             self.state.status = response
+            if self.state.mode == "layers":
+                self._refresh_layers()
             if self.state.mode in ("model", "dataset"):
                 self._refresh_config()
             if self.state.mode == "dataset":
                 self._refresh_model_summary()
+
+        if action.startswith("model-input:"):
+            axis = action.split(":", 1)[1]
+            self._focus_grid_input(axis)
+
+        if action == "model-grid-apply":
+            self._apply_grid_input()
 
         if action.startswith("admin:"):
             command = action.split(":", 1)[1]
@@ -400,7 +536,8 @@ class SupportPanelApp:
                 "OK: commands: viewer status, start viewer, "
                 "quit viewer, restart viewer, summary, contour summary, "
                 "config, model summary, set grid X Y, load dataset PATH, "
-                "reload dataset, contour interval N, contour source grid|tin"
+                "reload dataset, contour interval N, contour source grid|tin, "
+                "terrain opacity N, terrain palette elevation|grayscale|heat"
             )
 
         if parts in (["viewer", "status"], ["status"]):
@@ -573,6 +710,45 @@ class SupportPanelApp:
                 state=state,
             )
 
+        terrain_y = start_y + 15
+        opacity_percent = round(self.state.terrain_opacity * 100)
+        self._write_line(
+            lines,
+            terrain_y,
+            (
+                f"Terrain: source={self.state.terrain_source} "
+                f"palette={self.state.terrain_palette} "
+                f"opacity={opacity_percent}%"
+            ),
+            width,
+        )
+        lower_opacity = max(0.0, self.state.terrain_opacity - 0.1)
+        higher_opacity = min(1.0, self.state.terrain_opacity + 0.1)
+        self._draw_button(
+            lines,
+            x=0,
+            y=terrain_y + 2,
+            label="Opacity -",
+            action=f"command:terrain opacity {lower_opacity:.1f}",
+            state="inactive" if self.state.terrain_opacity > 0.0 else "disabled",
+        )
+        self._draw_button(
+            lines,
+            x=14,
+            y=terrain_y + 2,
+            label="Opacity +",
+            action=f"command:terrain opacity {higher_opacity:.1f}",
+            state="inactive" if self.state.terrain_opacity < 1.0 else "disabled",
+        )
+        self._draw_button(
+            lines,
+            x=28,
+            y=terrain_y + 2,
+            label="Palette",
+            action="command:cycle terrain palette",
+            state="focused",
+        )
+
     def _render_model_panel(
         self,
         lines: list[str],
@@ -631,7 +807,38 @@ class SupportPanelApp:
             width=5,
         )
 
-        self._write_line(lines, start_y + 11, "Presets", width)
+        self._write_line(lines, start_y + 11, "Typed divisions", width)
+        self._write_at(lines, 0, start_y + 13, "X", width)
+        self._draw_button(
+            lines,
+            x=3,
+            y=start_y + 12,
+            label=self._grid_input_label("x"),
+            action="model-input:x",
+            state=self._grid_input_state("x"),
+            width=12,
+        )
+        self._write_at(lines, 15, start_y + 13, "Y", width)
+        self._draw_button(
+            lines,
+            x=18,
+            y=start_y + 12,
+            label=self._grid_input_label("y"),
+            action="model-input:y",
+            state=self._grid_input_state("y"),
+            width=12,
+        )
+        self._draw_button(
+            lines,
+            x=33,
+            y=start_y + 12,
+            label="Apply",
+            action="model-grid-apply",
+            state="success",
+            width=10,
+        )
+
+        self._write_line(lines, start_y + 16, "Presets", width)
         preset_x = 0
         for divisions in (10, 20, 40):
             state = (
@@ -642,7 +849,7 @@ class SupportPanelApp:
             button = self._draw_button(
                 lines,
                 x=preset_x,
-                y=start_y + 12,
+                y=start_y + 17,
                 label=f"{divisions}x{divisions}",
                 action=f"command:set grid {divisions} {divisions}",
                 state=state,
@@ -766,11 +973,12 @@ class SupportPanelApp:
             "",
             "Viewer controls stay in the viewer terminal:",
             "h/j/k/l pan, +/- zoom, mouse drag pan.",
-            "b terrain, c contours, m contour source, v labels, [/] interval.",
+            "b terrain, c contours, m contour source, v labels.",
             "",
             "Admin: viewer status, quit viewer, restart viewer, summary.",
             "Model admin: set grid 30 30, load dataset path.csv, reload dataset.",
             "Contour admin: contour interval 25, contour source tin.",
+            "Terrain admin: terrain opacity 0.7, terrain palette heat.",
         ]
 
         row = start_y
@@ -831,6 +1039,17 @@ class SupportPanelApp:
         if response.startswith("ERROR: "):
             self.state.status = response
 
+    def _refresh_layers(self) -> None:
+        """Fetch and parse the current viewer layer state."""
+        response = self.send("layers summary")
+        if response.startswith("OK: "):
+            self.state.layer_summary = response.removeprefix("OK: ")
+            self._parse_layer_summary(self.state.layer_summary)
+            return
+
+        if response.startswith("ERROR: "):
+            self.state.status = response
+
     def _refresh_model_summary(self) -> None:
         """Fetch the current viewer model summary."""
         response = self.send("model summary")
@@ -864,6 +1083,46 @@ class SupportPanelApp:
                 self.state.grid_y_divisions = int(y_text)
             except ValueError:
                 pass
+
+    def _parse_layer_summary(self, summary: str) -> None:
+        """Parse terrain control values from the viewer layer summary."""
+        values = {}
+        for token in summary.split():
+            if "=" not in token:
+                continue
+            key, value = token.split("=", 1)
+            values[key] = value
+
+        if "terrain_source" in values:
+            self.state.terrain_source = values["terrain_source"]
+
+        if "terrain_palette" in values:
+            self.state.terrain_palette = values["terrain_palette"]
+
+        if "terrain_opacity" in values:
+            try:
+                self.state.terrain_opacity = float(values["terrain_opacity"])
+            except ValueError:
+                pass
+
+    def _grid_input_label(self, axis: str) -> str:
+        """Return the label shown inside one typed grid input field."""
+        if axis == "x":
+            value = self.state.grid_x_input or str(self.state.grid_x_divisions)
+        else:
+            value = self.state.grid_y_input or str(self.state.grid_y_divisions)
+
+        if self.state.grid_input_focus == axis:
+            return value + "_"
+
+        return value
+
+    def _grid_input_state(self, axis: str) -> str:
+        """Return the visual state for one typed grid input field."""
+        if self.state.grid_input_focus == axis:
+            return "focused"
+
+        return "inactive"
 
     def _layer_name_for_action(self, action: str) -> str:
         if action.endswith("toggle points"):

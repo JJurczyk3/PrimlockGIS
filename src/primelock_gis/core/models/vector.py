@@ -39,22 +39,3 @@ class TopologyModel:
     nodes: list[Node] = field(default_factory=list)
     arcs: list[Arc] = field(default_factory=list)
     polygons: list[Polygon] = field(default_factory=list)
-
-
-@dataclass
-class TextLabel:
-    id: int
-    text: str
-    x: float
-    y: float
-    angle_deg: float = 0.0
-    height: float = 10.0
-    related_arc: int | None = None
-
-@dataclass
-class ProjectHeader:
-    version: str
-    xmin: float
-    ymin: float
-    xmax: float
-    ymax: float

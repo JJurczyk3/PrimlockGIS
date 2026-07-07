@@ -1,6 +1,6 @@
 """Interactive terminal app set-up."""
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 import shutil
 import time
@@ -41,6 +41,34 @@ from primelock_gis.ui.terminal.screen import clear_screen, present_frame
 from primelock_gis.ui.terminal.session import TerminalSession
 from primelock_gis.ui.terminal.support_panel import CommandRequest
 from primelock_gis.ui.terminal.theme import TERMINAL_THEME, status_color
+
+
+TERRAIN_PALETTES = {
+    "elevation": (
+        TERMINAL_THEME.terrain_low,
+        TERMINAL_THEME.terrain_low_mid,
+        TERMINAL_THEME.terrain_high_mid,
+        TERMINAL_THEME.terrain_high,
+    ),
+    "grayscale": (
+        "#111827",
+        "#4B5563",
+        "#9CA3AF",
+        "#F9FAFB",
+    ),
+    "heat": (
+        "#172554",
+        "#0891B2",
+        "#F59E0B",
+        "#B91C1C",
+    ),
+}
+TERRAIN_PALETTE_ALIASES = {
+    "gray": "grayscale",
+    "grey": "grayscale",
+    "greyscale": "grayscale",
+}
+TERRAIN_PALETTE_NAMES = tuple(TERRAIN_PALETTES)
 
 
 def coalesce_terminal_events(events: list[TerminalEvent]) -> list[TerminalEvent]:
@@ -88,8 +116,8 @@ class InteractiveState:
     show_contour_labels: bool = False
     contour_source: str = "grid"
     contour_interval: float = 50.0
-    debug_input_enabled: bool = False
-    debug_input_events: list[str] = field(default_factory=list)
+    terrain_opacity: float = 1.0
+    terrain_palette: str = "elevation"
     selected_feature: str = "No feature selected."
     status_message: str = "Ready"
 
@@ -134,6 +162,8 @@ class InteractiveTerminalApp:
             bool,
             str,
             float,
+            float,
+            str,
         ] | None = None
         self.scene_cache: Scene | None = None
         self.contour_cache_key: tuple[str, float] | None = None
@@ -150,14 +180,11 @@ class InteractiveTerminalApp:
         scene = Scene()
 
         if self.state.show_terrain:
+            terrain_surface = self._terrain_surface()
             terrain_scene = terrain_to_scene(
-                self.project_state.idw_grid,
-                style=TerrainStyle(
-                    low_color=TERMINAL_THEME.terrain_low,
-                    low_mid_color=TERMINAL_THEME.terrain_low_mid,
-                    high_mid_color=TERMINAL_THEME.terrain_high_mid,
-                    high_color=TERMINAL_THEME.terrain_high,
-                ),
+                terrain_surface,
+                style=self._terrain_style(),
+                source=self.state.contour_source,
             )
             self._merge_scene(scene, terrain_scene)
 
@@ -279,14 +306,6 @@ class InteractiveTerminalApp:
             )
             return
 
-        if key == "[":
-            self._scale_contour_interval(0.5)
-            return
-
-        if key == "]":
-            self._scale_contour_interval(2.0)
-            return
-
         if key == "r":
             self.viewport = self.initial_viewport
             self.state.status_message = "Viewport reset"
@@ -309,8 +328,6 @@ class InteractiveTerminalApp:
 
     def handle_event(self, event: TerminalEvent) -> None:
         """Handle one terminal input event."""
-        self._record_debug_event(event)
-
         if isinstance(event, KeyEvent):
             self.handle_key(event.key)
             return
@@ -437,7 +454,7 @@ class InteractiveTerminalApp:
         """Return the controls row for the bottom status area."""
         return (
             "q quit | b terrain | g grid | t TIN | p points | c contours | m source | "
-            "v labels | [/] interval | r reset | hjkl pan | +/- zoom "
+            "v labels | r reset | hjkl pan | +/- zoom "
             f"| terrain={self.state.show_terrain} "
             f"| grid={self.state.show_grid} "
             f"| tin={self.state.show_tin} "
@@ -445,6 +462,8 @@ class InteractiveTerminalApp:
             f"| contours={self.state.show_contours} "
             f"| source={self.state.contour_source} "
             f"| interval={self.state.contour_interval:g} "
+            f"| terrain_opacity={self.state.terrain_opacity:.0%} "
+            f"| terrain_palette={self.state.terrain_palette} "
             f"| grid={self.project_state.config.grid_x_divisions}x"
             f"{self.project_state.config.grid_y_divisions}"
         )
@@ -456,14 +475,13 @@ class InteractiveTerminalApp:
     def _merge_scene(self, target: Scene, source: Scene) -> None:
         """Merge one scene into another scene."""
         target.terrains.extend(source.terrains)
-        target.polygons.extend(source.polygons)
         target.polylines.extend(source.polylines)
         target.points.extend(source.points)
         target.texts.extend(source.texts)
 
     def _scene_visibility_cache_key(
         self,
-    ) -> tuple[bool, bool, bool, bool, bool, bool, str, float]:
+    ) -> tuple[bool, bool, bool, bool, bool, bool, str, float, float, str]:
         """Return the state values that affect the static rendered scene."""
         return (
             self.state.show_terrain,
@@ -474,6 +492,29 @@ class InteractiveTerminalApp:
             self.state.show_contour_labels,
             self.state.contour_source,
             self.state.contour_interval,
+            self.state.terrain_opacity,
+            self.state.terrain_palette,
+        )
+
+    def _terrain_surface(self):
+        """Return the model used for terrain colour sampling."""
+        if self.state.contour_source == "tin":
+            return self.project_state.tin
+
+        return self.project_state.idw_grid
+
+    def _terrain_style(self) -> TerrainStyle:
+        """Return the current terrain colour style."""
+        low, low_mid, high_mid, high = TERRAIN_PALETTES[
+            self.state.terrain_palette
+        ]
+        return TerrainStyle(
+            low_color=low,
+            low_mid_color=low_mid,
+            high_mid_color=high_mid,
+            high_color=high,
+            opacity=self.state.terrain_opacity,
+            background_color=TERMINAL_THEME.background,
         )
 
     def contour_polylines(self) -> list[ContourPolyline]:
@@ -530,43 +571,12 @@ class InteractiveTerminalApp:
             f"Contour source: {self.state.contour_source}"
         )
 
-    def _scale_contour_interval(self, factor: float) -> None:
-        """Scale the contour interval while keeping it positive and readable."""
-        self.state.contour_interval = max(
-            0.001,
-            self.state.contour_interval * factor,
-        )
-        self._update_project_config(contour_interval=self.state.contour_interval)
-        self.state.status_message = (
-            f"Contour interval: {self.state.contour_interval:g}"
-        )
-
     def _visibility_status(self, layer_name: str, visible: bool) -> str:
         """Return a short visibility status message."""
         if visible:
             return f"{layer_name} visible"
 
         return f"{layer_name} hidden"
-
-    def _debug_event_status(self, event: TerminalEvent) -> str:
-        """Return a status message showing one raw terminal input event."""
-        raw_sequence = getattr(event, "raw_sequence", None)
-
-        if raw_sequence is None:
-            raw_sequence = repr(event)
-
-        escaped = raw_sequence.encode("unicode_escape").decode("ascii")
-        return f"Input debug: {type(event).__name__} raw={escaped}"
-
-    def _record_debug_event(self, event: TerminalEvent) -> None:
-        """Store one input event for support-panel debugging."""
-        if not self.state.debug_input_enabled:
-            return
-
-        self.state.debug_input_events.append(self._debug_event_status(event))
-
-        if len(self.state.debug_input_events) > 100:
-            self.state.debug_input_events = self.state.debug_input_events[-100:]
 
     def _pan_direction_from_key(self, key: str) -> str | None:
         """Map vim-style movement keys to pan directions."""
@@ -956,7 +966,18 @@ class InteractiveTerminalApp:
                 f"contour_labels="
                 f"{'on' if self.state.show_contour_labels else 'off'} "
                 f"contour_source={self.state.contour_source} "
-                f"contour_interval={self.state.contour_interval:g}"
+                f"contour_interval={self.state.contour_interval:g} "
+                f"terrain_source={self.state.contour_source} "
+                f"terrain_opacity={self.state.terrain_opacity:g} "
+                f"terrain_palette={self.state.terrain_palette}"
+            )
+
+        if parts == ["terrain", "summary"]:
+            return (
+                "OK: "
+                f"source={self.state.contour_source}, "
+                f"palette={self.state.terrain_palette}, "
+                f"opacity={self.state.terrain_opacity:g}"
             )
         
         if parts == ["show", "terrain"]:
@@ -976,6 +997,29 @@ class InteractiveTerminalApp:
                 self.state.show_terrain,
             )
             return f"OK: {self.state.status_message}"
+
+        if len(parts) == 3 and parts[:2] == ["terrain", "opacity"]:
+            return self._set_terrain_opacity(parts[2])
+
+        if len(parts) == 4 and parts[:3] == ["set", "terrain", "opacity"]:
+            return self._set_terrain_opacity(parts[3])
+
+        if len(parts) == 3 and parts[:2] in (
+            ["terrain", "palette"],
+            ["terrain", "color"],
+            ["terrain", "colour"],
+        ):
+            return self._set_terrain_palette(parts[2])
+
+        if len(parts) == 4 and parts[:3] in (
+            ["set", "terrain", "palette"],
+            ["set", "terrain", "color"],
+            ["set", "terrain", "colour"],
+        ):
+            return self._set_terrain_palette(parts[3])
+
+        if parts == ["cycle", "terrain", "palette"]:
+            return self._cycle_terrain_palette()
 
         if parts == ["show", "grid"]:
             self.state.show_grid = True
@@ -1123,28 +1167,6 @@ class InteractiveTerminalApp:
         if parts == ["summary"]:
             return self.model_summary()
 
-        if parts == ["debug", "input", "start"]:
-            self.state.debug_input_enabled = True
-            self.state.debug_input_events.clear()
-            self.state.status_message = "Input debug enabled"
-            return "OK: input debug enabled"
-
-        if parts == ["debug", "input", "poll"]:
-            if not self.state.debug_input_enabled:
-                return "ERROR: input debug is not enabled"
-
-            if not self.state.debug_input_events:
-                return "OK: no input"
-
-            event_text = self.state.debug_input_events.pop(0)
-            return f"OK: input {event_text}"
-
-        if parts == ["debug", "input", "stop"]:
-            self.state.debug_input_enabled = False
-            self.state.debug_input_events.clear()
-            self.state.status_message = "Input debug disabled"
-            return "OK: input debug disabled"
-        
         if len(parts) == 4 and parts[:2] == ["query", "grid"]:
             try:
                 row = int(parts[2])
@@ -1234,6 +1256,44 @@ class InteractiveTerminalApp:
         self._update_project_config(contour_interval=interval)
         self.state.status_message = f"Contour interval: {interval:g}"
         return f"OK: {self.state.status_message}"
+
+    def _set_terrain_opacity(self, value_text: str) -> str:
+        """Set simulated terrain opacity from a support command."""
+        try:
+            opacity = float(value_text)
+        except ValueError:
+            return "ERROR: terrain opacity must be a number"
+
+        if 1.0 < opacity <= 100.0:
+            opacity = opacity / 100.0
+
+        if opacity < 0.0 or opacity > 1.0:
+            return "ERROR: terrain opacity must be between 0 and 1"
+
+        self.state.terrain_opacity = opacity
+        self._clear_model_caches()
+        self.state.status_message = f"Terrain opacity: {opacity:.0%}"
+        return f"OK: {self.state.status_message}"
+
+    def _set_terrain_palette(self, palette: str) -> str:
+        """Set the terrain colour palette from a support command."""
+        palette_name = TERRAIN_PALETTE_ALIASES.get(palette, palette)
+        if palette_name not in TERRAIN_PALETTES:
+            return (
+                "ERROR: terrain palette must be one of "
+                + ", ".join(TERRAIN_PALETTE_NAMES)
+            )
+
+        self.state.terrain_palette = palette_name
+        self._clear_model_caches()
+        self.state.status_message = f"Terrain palette: {palette_name}"
+        return f"OK: {self.state.status_message}"
+
+    def _cycle_terrain_palette(self) -> str:
+        """Cycle to the next terrain colour palette."""
+        current_index = TERRAIN_PALETTE_NAMES.index(self.state.terrain_palette)
+        next_index = (current_index + 1) % len(TERRAIN_PALETTE_NAMES)
+        return self._set_terrain_palette(TERRAIN_PALETTE_NAMES[next_index])
 
     def _set_grid_divisions(self, x_text: str, y_text: str) -> str:
         """Set grid divisions and rebuild the project safely."""

@@ -163,7 +163,7 @@ def build_scene(grid, polylines, points, show_grid: bool) -> Scene:
 
 
 def merge_scene(target: Scene, source: Scene) -> None:
-    target.polygons.extend(source.polygons)
+    target.terrains.extend(source.terrains)
     target.polylines.extend(source.polylines)
     target.points.extend(source.points)
     target.texts.extend(source.texts)

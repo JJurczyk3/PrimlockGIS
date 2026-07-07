@@ -1,3 +1,5 @@
+import pytest
+
 from primelock_gis.ui.terminal.canvas import (
     TerminalCanvas,
     is_safe_cell_char,
@@ -7,7 +9,6 @@ from primelock_gis.ui.terminal.canvas import (
 from primelock_gis.ui.terminal.capabilities import TerminalCapabilities
 
 
-"""Manually written test casses"""
 def test_write_text():
     canvas = TerminalCanvas(5, 2, ".")
 
@@ -42,10 +43,6 @@ def test_clear_reuses_existing_cell_objects():
     assert canvas.cells[0][0] is first_cell
     assert canvas.cells[1][4] is last_cell
     assert canvas.to_string() == ".....\n....."
-
-
-
-""" More test casses written by an LLM"""
 def test_canvas_starts_filled():
     canvas = TerminalCanvas(5, 2, ".")
 
@@ -62,19 +59,13 @@ def test_clear_can_change_fill_char():
 
 
 def test_invalid_width_raises_error():
-    try:
+    with pytest.raises(ValueError):
         TerminalCanvas(0, 2)
-        assert False, "Expected ValueError"
-    except ValueError:
-        pass
 
 
 def test_invalid_height_raises_error():
-    try:
+    with pytest.raises(ValueError):
         TerminalCanvas(5, 0)
-        assert False, "Expected ValueError"
-    except ValueError:
-        pass
 
 
 def test_set_cell_writes_one_safe_character():

@@ -1,6 +1,5 @@
-""" Terminal screen driwing helpers. """
+"""Terminal screen drawing helpers."""
 
-import shutil
 import sys
 
 from primelock_gis.ui.terminal.theme import color_text
@@ -22,14 +21,6 @@ def clear_line() -> None:
 def draw_frame(text: str) -> None:
     move_cursor_home()
     write(text)
-
-def draw_status_bar(text: str, row: int, width: int | None = None) -> None:
-    if width is None:
-        width = shutil.get_terminal_size().columns
-
-    write(f"\x1b[{row};1H")
-    clear_line()
-    write(text[:width])
 
 
 def present_frame(

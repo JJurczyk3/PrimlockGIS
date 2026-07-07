@@ -6,7 +6,6 @@ from primelock_gis.core.rendering.scene import (
     DrawableTerrain,
     DrawablePoint,
     DrawablePolyline,
-    DrawablePolygon,
     DrawableText,
     Scene,
 )
@@ -43,21 +42,20 @@ class TerminalRenderer2D(RendererBase):
         self.canvas.clear()
 
     def draw_terrain(self, drawable: DrawableTerrain) -> None:
-        """Render a grid-backed terrain colour layer as cell backgrounds."""
-        grid = drawable.grid
-        if not self._grid_intersects_view(grid):
+        """Render a sampled terrain colour layer as cell backgrounds."""
+        surface = drawable.surface
+        if not self._surface_intersects_view(surface):
             return
 
-        value_min = min(min(row) for row in grid.node_values)
-        value_max = max(max(row) for row in grid.node_values)
+        value_min, value_max = surface.value_range()
 
         for cell_y in range(self.canvas.height):
             for cell_x in range(self.canvas.width):
                 world_point = self.viewport.view_to_world(cell_x + 0.5, cell_y + 0.5)
-                if not grid.contains_xy(world_point.x, world_point.y):
+                value = surface.sample_at(world_point.x, world_point.y)
+                if value is None:
                     continue
 
-                value = grid.value_at(world_point.x, world_point.y)
                 color = self._terrain_color(
                     value,
                     value_min,
@@ -97,19 +95,6 @@ class TerminalRenderer2D(RendererBase):
         cell_points = self._world_points_to_cell_points(drawable.points)
         self._draw_cell_polyline(cell_points, drawable.style, close=False)
             
-    # Render polygons
-    def draw_polygon(self, drawable: DrawablePolygon) -> None:
-        if not self._points_intersect_view(drawable.points):
-            return
-
-        cell_points = self._world_points_to_cell_points(drawable.points)
-        self._draw_literal_cell_polyline(
-            cell_points,
-            drawable.style.char,
-            color=drawable.style.outline_color,
-            close=True,
-        )
-
     # Render text
     def draw_text(self, drawable: DrawableText) -> None:
         if not self._point_intersects_view(drawable.position):
@@ -153,17 +138,18 @@ class TerminalRenderer2D(RendererBase):
             or min_y > self.viewport.world_max_y
         )
 
-    def _grid_intersects_view(self, grid) -> bool:
+    def _surface_intersects_view(self, surface) -> bool:
+        min_x, min_y, max_x, max_y = surface.bounds()
         return not (
-            grid.x_max < self.viewport.world_min_x
-            or grid.x_min > self.viewport.world_max_x
-            or grid.y_max < self.viewport.world_min_y
-            or grid.y_min > self.viewport.world_max_y
+            max_x < self.viewport.world_min_x
+            or min_x > self.viewport.world_max_x
+            or max_y < self.viewport.world_min_y
+            or min_y > self.viewport.world_max_y
         )
 
     def _terrain_color(self, value: float, value_min: float, value_max: float, style) -> str:
         if value_max == value_min:
-            return style.low_mid_color
+            return self._apply_opacity(style.low_mid_color, style)
 
         t = (value - value_min) / (value_max - value_min)
         t = max(0.0, min(1.0, t))
@@ -180,9 +166,10 @@ class TerminalRenderer2D(RendererBase):
             end_t, end_color = stops[index + 1]
             if start_t <= t <= end_t:
                 local_t = (t - start_t) / (end_t - start_t)
-                return self._interpolate_hex_color(start_color, end_color, local_t)
+                color = self._interpolate_hex_color(start_color, end_color, local_t)
+                return self._apply_opacity(color, style)
 
-        return style.high_color
+        return self._apply_opacity(style.high_color, style)
 
     def _interpolate_hex_color(
         self,
@@ -198,6 +185,42 @@ class TerminalRenderer2D(RendererBase):
         red = round(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * t)
         green = round(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * t)
         blue = round(start_rgb[2] + (end_rgb[2] - start_rgb[2]) * t)
+        return f"#{red:02X}{green:02X}{blue:02X}"
+
+    def _apply_opacity(self, color: str, style) -> str:
+        opacity = max(0.0, min(1.0, style.opacity))
+        if opacity >= 1.0:
+            return color
+
+        return self._blend_hex_color(
+            foreground=color,
+            background=style.background_color,
+            opacity=opacity,
+        )
+
+    def _blend_hex_color(
+        self,
+        foreground: str,
+        background: str,
+        opacity: float,
+    ) -> str:
+        foreground_rgb = parse_hex_color(foreground)
+        background_rgb = parse_hex_color(background)
+        if foreground_rgb is None or background_rgb is None:
+            return foreground
+
+        red = round(
+            foreground_rgb[0] * opacity
+            + background_rgb[0] * (1.0 - opacity)
+        )
+        green = round(
+            foreground_rgb[1] * opacity
+            + background_rgb[1] * (1.0 - opacity)
+        )
+        blue = round(
+            foreground_rgb[2] * opacity
+            + background_rgb[2] * (1.0 - opacity)
+        )
         return f"#{red:02X}{green:02X}{blue:02X}"
     
     # Convert world coordinates of a single point to screen coordinates.
@@ -277,16 +300,6 @@ class TerminalRenderer2D(RendererBase):
             x1, y1 = points[i]
             x2, y2 = points[i + 1]
             self._draw_literal_line_cells(x1, y1, x2, y2, char, color)
-
-    # Draw a sampled line between two terminal cells.
-    def _sample_line_cells(
-        self,
-        x1: int,
-        y1: int,
-        x2: int,
-        y2: int,
-    ) -> list[tuple[int, int]]:
-        return list(self._iter_sampled_line_cells(x1, y1, x2, y2))
 
     def _iter_sampled_line_cells(
         self,

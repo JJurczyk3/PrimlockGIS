@@ -1,4 +1,1 @@
-"""Application workflows.
-
-应用工作流。
-"""
+"""Application workflows."""

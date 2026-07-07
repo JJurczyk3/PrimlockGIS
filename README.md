@@ -15,7 +15,8 @@ The current application works with sampled point data, builds interpolation grid
 - Bowyer-Watson / Delaunay-style TIN generation from sample points.
 - Grid contour segment generation, tracing, labels, and rendering.
 - TIN contour segment generation, tracing, labels, and rendering.
-- Terrain coloring from grid values as terminal background colors.
+- Terrain coloring from the selected contour source, using either grid or TIN values as terminal background colors.
+- Terrain palette and simulated opacity controls.
 - First-pass node/arc/polygon topology construction from linework and traced contours.
 - Table-like topology export helpers.
 - Interactive terminal viewer with pan, zoom, layer toggles, feature selection, and status rows.
@@ -72,7 +73,6 @@ uv run pytest
 - `c`: toggle contours
 - `m`: switch contour source between grid and TIN
 - `v`: toggle contour labels
-- `[` / `]`: decrease/increase contour interval
 
 ## Support Panel
 
@@ -81,8 +81,8 @@ The support panel talks to the viewer over a local command socket.
 Tabs:
 
 - `Info`: selected feature details.
-- `Layers`: clickable toggles for points, terrain, grid, TIN, contours, contour source, and labels.
-- `Model`: grid division controls and presets.
+- `Layers`: clickable toggles for points, terrain, grid, TIN, contours, contour source, labels, terrain opacity, and terrain palette.
+- `Model`: grid division stepper controls, typed X/Y grid division inputs, and presets.
 - `Dataset`: current dataset/config summary and reload button.
 - `Admin`: typed commands and viewer lifecycle controls.
 
@@ -108,6 +108,9 @@ contour source grid
 contour source tin
 contour interval 25
 contour summary
+terrain opacity 0.7
+terrain palette heat
+terrain summary
 query grid <row> <col>
 quit viewer
 ```

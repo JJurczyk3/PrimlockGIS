@@ -1,6 +1,6 @@
 """Create drawable objects from GIS data."""
 
-from primelock_gis.core.models.contour import ContourPolyline, ContourSegment
+from primelock_gis.core.models.contour import ContourPolyline
 from primelock_gis.core.models.vector import SpecialPoint, TopologyModel
 from primelock_gis.core.rendering.scene import (
     DrawableTerrain,
@@ -8,12 +8,12 @@ from primelock_gis.core.rendering.scene import (
     DrawablePolyline,
     DrawableText,
     Scene,
+    TerrainSurface,
 )
 from primelock_gis.core.geometry import Point
 from primelock_gis.core.rendering.symbology import (
     PointStyle,
     PolylineStyle,
-    FillStyle,
     TextStyle,
     TerrainStyle,
 )
@@ -21,16 +21,21 @@ from primelock_gis.core.models.grid import GridModel
 from primelock_gis.core.models.tin import TinModel
 
 
-def terrain_to_scene(grid_model: GridModel, style: TerrainStyle | None = None) -> Scene:
-    """Convert a grid model to a terrain colour scene layer."""
+def terrain_to_scene(
+    surface: TerrainSurface,
+    style: TerrainStyle | None = None,
+    source: str = "grid",
+) -> Scene:
+    """Convert a sampled terrain surface to a terrain colour scene layer."""
     if style is None:
         style = TerrainStyle()
 
     return Scene(
         terrains=[
             DrawableTerrain(
-                grid=grid_model,
+                surface=surface,
                 style=style,
+                source=source,
             )
         ]
     )
@@ -110,29 +115,6 @@ def tin_to_scene(tin_model: TinModel, style: PolylineStyle | None = None) -> Sce
     return scene
 
 
-def contour_segments_to_scene(
-    segments: list[ContourSegment],
-    style: PolylineStyle | None = None,
-) -> Scene:
-    """Convert raw contour segments to display scene polylines."""
-    if style is None:
-        style = PolylineStyle(char="=")
-
-    scene = Scene()
-
-    for segment in segments:
-        drawable = DrawablePolyline(
-            points=[
-                segment.start,
-                segment.end,
-            ],
-            style=style,
-        )
-        scene.polylines.append(drawable)
-
-    return scene
-
-
 def contour_polylines_to_scene(
     polylines: list[ContourPolyline],
     style: PolylineStyle | None = None,
@@ -160,14 +142,6 @@ def contour_polylines_to_scene(
         scene.polylines.append(drawable)
 
     return scene
-
-
-def contours_to_scene(
-    polylines: list[ContourPolyline],
-    style: PolylineStyle | None = None,
-) -> Scene:
-    """Compatibility wrapper for traced contour polyline rendering."""
-    return contour_polylines_to_scene(polylines, style)
 
 
 def contour_labels_to_scene(

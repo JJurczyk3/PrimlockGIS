@@ -147,15 +147,54 @@ def test_support_panel_command_button_sends_viewer_command():
 
 def test_support_panel_layers_render_adds_contour_buttons():
     app = FakeSupportPanelApp()
-    lines = [" " * 40 for _ in range(22)]
+    lines = [" " * 60 for _ in range(26)]
 
-    app._render_layers_panel(lines, width=40)
+    app._render_layers_panel(lines, width=60)
 
     actions = {button.action for button in app.buttons}
     assert "command:toggle terrain" in actions
     assert "command:toggle contours" in actions
     assert "command:toggle contour source" in actions
     assert "command:toggle contour labels" in actions
+    assert "command:terrain opacity 0.9" in actions
+    assert "command:cycle terrain palette" in actions
+
+
+def test_support_panel_parses_terrain_settings_from_layer_summary():
+    app = FakeSupportPanelApp()
+
+    app._parse_layer_summary(
+        "points=on terrain=on contour_source=tin terrain_source=tin "
+        "terrain_opacity=0.7 terrain_palette=heat"
+    )
+
+    assert app.state.terrain_source == "tin"
+    assert app.state.terrain_opacity == 0.7
+    assert app.state.terrain_palette == "heat"
+
+
+def test_support_panel_terrain_palette_button_refreshes_layers():
+    app = FakeSupportPanelApp()
+    app.state.mode = "layers"
+    app.responses["layers summary"] = (
+        "OK: points=on terrain=on contour_source=grid "
+        "terrain_source=grid terrain_opacity=1 terrain_palette=grayscale"
+    )
+    lines = [" " * 60 for _ in range(26)]
+
+    app._render_layers_panel(lines, width=60)
+    palette_button = next(button for button in app.buttons if button.label == "Palette")
+    app.handle_mouse(
+        MouseEvent(
+            kind="press",
+            x=palette_button.x + 1,
+            y=palette_button.y + 1,
+            button=0,
+        )
+    )
+
+    assert app.sent_commands == ["cycle terrain palette", "layers summary"]
+    assert app.state.terrain_palette == "grayscale"
 
 
 def test_support_panel_mouse_click_activates_button():
@@ -211,6 +250,62 @@ def test_support_panel_model_preset_button_sends_grid_command():
     )
 
     assert app.sent_commands[0] == "set grid 40 40"
+
+
+def test_support_panel_model_typed_grid_divisions_apply_button():
+    app = FakeSupportPanelApp()
+    app.state.mode = "model"
+    app.state.grid_x_divisions = 8
+    app.state.grid_y_divisions = 8
+    lines = [" " * 70 for _ in range(28)]
+
+    app._render_model_panel(lines, width=70)
+    x_input = next(button for button in app.buttons if button.action == "model-input:x")
+    y_input = next(button for button in app.buttons if button.action == "model-input:y")
+    apply_button = next(
+        button for button in app.buttons if button.action == "model-grid-apply"
+    )
+
+    app.handle_mouse(
+        MouseEvent(kind="press", x=x_input.x + 1, y=x_input.y + 1, button=0)
+    )
+    for char in "120":
+        app.handle_key(char)
+
+    app.handle_mouse(
+        MouseEvent(kind="press", x=y_input.x + 1, y=y_input.y + 1, button=0)
+    )
+    for char in "80":
+        app.handle_key(char)
+
+    app.handle_mouse(
+        MouseEvent(
+            kind="press",
+            x=apply_button.x + 1,
+            y=apply_button.y + 1,
+            button=0,
+        )
+    )
+
+    assert app.sent_commands[0] == "set grid 120 80"
+    assert app.state.grid_x_divisions == 120
+    assert app.state.grid_y_divisions == 80
+    assert app.state.grid_input_focus is None
+
+
+def test_support_panel_model_typed_grid_divisions_enter_key_applies():
+    app = FakeSupportPanelApp()
+    app.state.mode = "model"
+
+    app.handle_key("x")
+    for char in "64":
+        app.handle_key(char)
+    app.handle_key("\t")
+    for char in "96":
+        app.handle_key(char)
+    app.handle_key("\n")
+
+    assert app.sent_commands[0] == "set grid 64 96"
 
 
 def test_support_panel_dataset_reload_button_sends_reload_command():
