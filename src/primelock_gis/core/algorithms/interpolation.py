@@ -1,8 +1,9 @@
-"""Define inverse-distance-square interpolation and directional weighted average interpolation algorithms."""
+"""Interpolation algorithms used when building grid models."""
 
-from primelock_gis.core.models.vector import SpecialPoint
-from primelock_gis.core.geometry import EPS, Point, distance_squared
 from math import atan2, pi
+
+from primelock_gis.core.geometry import EPS, Point, distance_squared
+from primelock_gis.core.models.vector import SpecialPoint
 
 
 def idw_value(points: list[SpecialPoint], x_a: float, y_a: float) -> float:
@@ -26,18 +27,26 @@ def idw_value(points: list[SpecialPoint], x_a: float, y_a: float) -> float:
     return weighted_z_sum / weight_sum
 
 
-def directional_weighted_average(points: list[SpecialPoint], x_a: float, y_a: float, sectors_per_quadrant: int = 1) -> float:
+def directional_weighted_average(
+    points: list[SpecialPoint],
+    x_a: float,
+    y_a: float,
+    sectors_per_quadrant: int = 1,
+) -> float:
+    
     """Calculate an interpolated z value using directional weighted average interpolation."""
     if not points:
         raise ValueError("Cannot interpolate from an empty point list")
-    
+
     if sectors_per_quadrant < 1:
         raise ValueError("sectors_per_quadrant must be positive")
-    
+
     target = Point(x_a, y_a)
     sector_count = 4 * sectors_per_quadrant
     sector_size = 2 * pi / sector_count
 
+    # Directional interpolation reduces clustering bias by keeping only the
+    # nearest sample from each angular sector before applying IDW.
     nearest_by_sector = [None for _ in range(sector_count)]
     nearest_distances = [float("inf") for _ in range(sector_count)]
 
@@ -46,17 +55,17 @@ def directional_weighted_average(points: list[SpecialPoint], x_a: float, y_a: fl
 
         if dist_sq < EPS:
             return point.z
-        
+
         dx = point.x - target.x
         dy = point.y - target.y
-        angle = atan2(dy, dx) # angle from -pi to pi
+        angle = atan2(dy, dx)
 
         if angle < 0:
-            angle += 2 * pi # so angle from 0 to 2pi
+            angle += 2 * pi
 
-        sector_index = int(angle / sector_size)       
+        sector_index = int(angle / sector_size)
 
-        # prevent rare cases where sector index_rounds up to sector_count for angles near to 2pi
+        # Guard against floating point rounding at the 2*pi boundary.
         if sector_index == sector_count:
             sector_index = sector_count - 1
 
@@ -69,6 +78,5 @@ def directional_weighted_average(points: list[SpecialPoint], x_a: float, y_a: fl
         if point is not None
     ]
     return idw_value(selected_points, x_a, y_a)
-
 
 

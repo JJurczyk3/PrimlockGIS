@@ -1,7 +1,4 @@
-"""Terminal capability detection.
-
-终端能力检测。
-"""
+"""Terminal capability detection."""
 
 from dataclasses import dataclass
 import os
@@ -16,8 +13,9 @@ class TerminalCapabilities:
     supports_color: bool = True
     supports_truecolor: bool = False
 
-# Check what terminal the user is using.
+
 def detect_terminal_name(env: Mapping[str, str] | None = None) -> str:
+    """Detect the current terminal family from environment variables."""
     if env is None:
         env = os.environ
 
@@ -47,8 +45,9 @@ def detect_terminal_name(env: Mapping[str, str] | None = None) -> str:
 
     return "unknown"
 
-# Check what color range is supported.
+
 def supports_truecolor(env: Mapping[str, str] | None = None) -> bool:
+    """Return True when the terminal advertises 24-bit colour support."""
     if env is None:
         env = os.environ
 
@@ -57,8 +56,9 @@ def supports_truecolor(env: Mapping[str, str] | None = None) -> bool:
 
     return color_term_lower in ("truecolor", "24bit")
 
-# Return the terminal capabilities.
+
 def detect_terminal_capabilities(env: Mapping[str, str] | None = None) -> TerminalCapabilities:
+    """Return the capability set used by terminal renderers."""
     name = detect_terminal_name(env)
     truecolor = supports_truecolor(env)
 

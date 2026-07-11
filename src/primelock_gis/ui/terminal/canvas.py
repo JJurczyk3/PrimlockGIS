@@ -164,8 +164,8 @@ class TerminalCanvas:
     fill_char: str = " "
     cells: list[list[TerminalCell]] = field(init=False)
 
-    # If the input dimensions are valid, build an empty canvas.
     def __post_init__(self) -> None:
+        """Validate dimensions and allocate the cell grid."""
         if self.width <= 0:
             raise ValueError("Canvas width must be positive")
         if self.height <= 0:
@@ -173,8 +173,8 @@ class TerminalCanvas:
 
         self.clear()
 
-    # Reset the whole canvas.
     def clear(self, fill_char: str | None = None) -> None:
+        """Reset the whole canvas to the current fill character."""
         if fill_char is not None:
             self.fill_char = fill_char
 
@@ -193,7 +193,6 @@ class TerminalCanvas:
             for cell in row:
                 cell.reset(safe_fill)
 
-    # Write one character to one terminal cell.
     def set_cell(
         self,
         x: int,
@@ -203,6 +202,7 @@ class TerminalCanvas:
         background: str | None = None,
         preserve_background: bool = True,
     ) -> None:
+        """Write one foreground character to one terminal cell."""
         if not char:
             return
 
@@ -222,7 +222,6 @@ class TerminalCanvas:
         if 0 <= x < self.width and 0 <= y < self.height:
             self.cells[y][x].reset(char, background=background)
 
-    # Write one mergeable line fragment to a terminal cell.
     def set_line_cell(
         self,
         x: int,
@@ -231,13 +230,13 @@ class TerminalCanvas:
         color: str | None = None,
         line_style: str = "solid",
     ) -> None:
+        """Write a mergeable line fragment to one terminal cell."""
         if not edges:
             return
 
         if 0 <= x < self.width and 0 <= y < self.height:
             self.cells[y][x].set_line(edges, color, line_style)
 
-    # Write one Braille sub-cell dot into a terminal cell.
     def set_braille_dot(
         self,
         x: int,
@@ -247,6 +246,7 @@ class TerminalCanvas:
         color: str | None = None,
         line_style: str = "solid",
     ) -> None:
+        """Write one Braille sub-cell dot into a terminal cell."""
         dot_mask = BRAILLE_DOT_MASKS.get((sub_x, sub_y))
         if dot_mask is None:
             return
@@ -254,7 +254,6 @@ class TerminalCanvas:
         if 0 <= x < self.width and 0 <= y < self.height:
             self.cells[y][x].set_braille_dot(dot_mask, color, line_style)
 
-    # Write a text label horizontally into the canvas.
     def write_text(
         self,
         x: int,
@@ -262,6 +261,7 @@ class TerminalCanvas:
         text: str,
         foreground: str | None = None,
     ) -> None:
+        """Write a text label horizontally into the canvas."""
         if y < 0 or y >= self.height:
             return
         if x >= self.width:
@@ -278,8 +278,8 @@ class TerminalCanvas:
             valid_char = safe_cell_char(char)
             self.set_cell(x + i, y, valid_char, foreground)
 
-    # Convert canvas grid into printable text.
     def to_string(self, capabilities=None) -> str:
+        """Convert the canvas grid into printable terminal text."""
         supports_unicode = True
         supports_braille = True
         if capabilities is not None:
@@ -326,8 +326,8 @@ class TerminalCanvas:
         return "\n".join(rows)
 
 
-# Return True if char is safe to put into one terminal cell.
 def is_safe_cell_char(char: str) -> bool:
+    """Return True when char is safe to put into one terminal cell."""
     if char == "":
         return False
     elif not isinstance(char, str):
@@ -339,16 +339,16 @@ def is_safe_cell_char(char: str) -> bool:
     return True
 
 
-# Return char if it is safe. Otherwise return fallback.
 def safe_cell_char(char: str, fallback=" ") -> str:
+    """Return char if it is safe; otherwise return fallback."""
     if is_safe_cell_char(char):
         return char
     else:
         return fallback
 
 
-# Make sure text fits within max_width by truncating it if necessary.
 def clip_text_to_width(text: str, available_width: int) -> str:
+    """Clip text to the number of cells available on the current row."""
     if len(text) <= available_width:
         return text
     else:

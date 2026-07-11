@@ -1,14 +1,26 @@
-""" Terminal keyboard and mouse input parsing. """
+"""Terminal keyboard and mouse input parsing."""
 
 import os
 import re
-import select
 import sys
+import time
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import select
 
 from primelock_gis.ui.terminal.events import KeyEvent, MouseEvent, TerminalEvent
 
 ESCAPE_READ_TIMEOUT = 0.10
 SGR_MOUSE_RE = re.compile(r"^\x1b\[<(\d+);(\d+);(\d+)([Mm])$")
+WINDOWS_SPECIAL_KEYS = {
+    "H": "up",
+    "P": "down",
+    "K": "left",
+    "M": "right",
+    "S": "delete",
+}
 
 
 def parse_input_sequence(sequence: str) -> TerminalEvent | None:
@@ -93,12 +105,13 @@ def parse_x10_mouse_sequence(sequence: str) -> MouseEvent | None:
 
 def read_terminal_event(timeout: float = 0.05) -> TerminalEvent | None:
     """Read one terminal event if available."""
-    readable, _, _ = select.select([sys.stdin.fileno()], [], [], timeout)
-
-    if not readable:
+    sequence = _read_next_stdin_char(timeout)
+    if sequence is None:
         return None
 
-    sequence = _read_stdin_char()
+    if sequence in ("\x00", "\xe0"):
+        key = _read_next_stdin_char(ESCAPE_READ_TIMEOUT)
+        return KeyEvent(WINDOWS_SPECIAL_KEYS.get(key, sequence), raw_sequence=sequence)
 
     if sequence == "\x1b":
         sequence += _read_escape_suffix()
@@ -171,6 +184,9 @@ def _csi_sequence_complete(suffix: str) -> bool:
 
 
 def _read_next_stdin_char(timeout: float) -> str | None:
+    if os.name == "nt":
+        return _read_next_windows_char(timeout)
+
     readable, _, _ = select.select([sys.stdin.fileno()], [], [], timeout)
 
     if not readable:
@@ -181,3 +197,19 @@ def _read_next_stdin_char(timeout: float) -> str | None:
 
 def _read_stdin_char() -> str:
     return os.read(sys.stdin.fileno(), 1).decode("latin-1")
+
+
+def _read_next_windows_char(timeout: float) -> str | None:
+    deadline = time.monotonic() + max(0.0, timeout)
+
+    while True:
+        if msvcrt.kbhit():
+            char = msvcrt.getwch()
+            if char == "\r":
+                return "\n"
+            return char
+
+        if time.monotonic() >= deadline:
+            return None
+
+        time.sleep(0.005)

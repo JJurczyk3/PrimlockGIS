@@ -57,6 +57,8 @@ def build_topology_from_point_sequences(
     segments = _build_segments(polylines, tolerance)
     split_points_by_segment = _initial_split_points(segments)
 
+    # Splitting linework before node creation makes intersections become real
+    # topology nodes instead of visual-only line crossings.
     _add_intersection_split_points(
         segments,
         split_points_by_segment,

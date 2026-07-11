@@ -31,6 +31,42 @@ The current application works with sampled point data, builds interpolation grid
 
 Install and run through `uv`; no separate GIS packages are required.
 
+## Teacher Quick Start
+
+1. Install Python 3.13 or newer.
+2. Install `uv`.
+3. Extract the submitted ZIP file.
+4. Open a terminal in the extracted `PrimlockGIS` folder.
+5. Run:
+
+```bash
+uv run pytest
+```
+
+To run the interactive program, open two terminal windows in the project folder.
+
+Terminal 1:
+
+```bash
+uv run python -m primelock_gis viewer
+```
+
+Terminal 2:
+
+```bash
+uv run python -m primelock_gis support
+```
+
+The viewer and support panel communicate on `127.0.0.1:8765`.
+
+## Platform Notes
+
+- Linux and macOS: use a normal terminal with ANSI escape support.
+- Windows: use Windows Terminal or PowerShell. Kitty is not required. The program includes a Windows console input path; mouse support depends on the terminal, but keyboard controls and support-panel commands are available.
+- If `uv` is not installed, install it with `python -m pip install uv` on Linux/macOS or `py -m pip install uv` on Windows.
+- If the terminal asks about firewall/network access, allow local connections for `127.0.0.1`.
+- For offline standalone builds, see `PACKAGING.md`.
+
 ## Run
 
 Start the viewer:
@@ -45,17 +81,18 @@ Start the support/control panel in a second terminal:
 uv run python -m primelock_gis support
 ```
 
-Render the contour demo script:
-
-```bash
-uv run python scripts/render_contours_demo.py --show-grid
-```
-
 Run tests:
 
 ```bash
 uv run pytest
 ```
+
+## Final Assignment Checklist
+
+- Executable program: run `uv run python -m primelock_gis viewer`; open a second terminal and run `uv run python -m primelock_gis support`.
+- Printed source code: include `src/primelock_gis`, `tests`, `README.md`, `PACKAGING.md`, `design.md`, `pyproject.toml`, and `data/initial_coords.csv`.
+- Printed run result: include the viewer/support-panel screenshots or terminal output, plus `uv run pytest` output.
+- Downloadable file: submit `PrimelockGIS-submission.zip` or the standalone package described in `PACKAGING.md`.
 
 ## Viewer Controls
 
@@ -133,5 +170,4 @@ The included coursework dataset has 43 sample points.
 - `src/primelock_gis/core/rendering`: scene objects, symbology, viewport, scene builders.
 - `src/primelock_gis/ui/terminal`: terminal canvas, renderer, interactive viewer, support panel.
 - `src/primelock_gis/app`: project config/state, rebuild service, startup workflow.
-- `scripts`: small command-line demos.
 - `tests`: unit tests for algorithms, rendering, input, viewer commands, and support panel behavior.

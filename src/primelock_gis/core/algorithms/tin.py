@@ -1,4 +1,5 @@
 """Algorithms for generating TIN models."""
+
 from primelock_gis.core.models.tin import TinVertex, TinTriangle, TinModel
 from primelock_gis.core.models.vector import SpecialPoint
 from primelock_gis.core.geometry import circumcircle_contains
@@ -24,7 +25,7 @@ def create_super_triangle(vertices: list[TinVertex]) -> tuple[list[TinVertex], T
     """Create a large artificial triangle containing all vertices."""
     if len(vertices) < 3:
         raise ValueError("At least 3 vertices are required to build a TIN")
-    
+
     x_min = min(vertex.x for vertex in vertices)
     y_min = min(vertex.y for vertex in vertices)
     x_max = max(vertex.x for vertex in vertices)
@@ -34,15 +35,14 @@ def create_super_triangle(vertices: list[TinVertex]) -> tuple[list[TinVertex], T
     height = y_max - y_min
     span = max(width, height)
 
-    # Robustness against the very thin or very small triangles.
     if span == 0:
         raise ValueError("Cannot create a TIN from identical point coordinates")
 
     center_x = (x_min + x_max) / 2
     center_y = (y_min + y_max) / 2
 
-    # Negative vertex IDs allow to easily delete the super triangles at the end
-    p1 = TinVertex(id=-1, x=center_x, y=center_y + 3 * span, z=0.0,)
+    # Negative vertex IDs make the artificial outer triangles easy to remove.
+    p1 = TinVertex(id=-1, x=center_x, y=center_y + 3 * span, z=0.0)
     p2 = TinVertex(id=-2, x=center_x - 3 * span, y=center_y - 3 * span, z=0.0)
     p3 = TinVertex(id=-3, x=center_x + 3 * span, y=center_y - 3 * span, z=0.0)
 
@@ -53,7 +53,6 @@ def create_super_triangle(vertices: list[TinVertex]) -> tuple[list[TinVertex], T
 
 def build_tin_from_points(points: list[SpecialPoint]) -> TinModel:
     """Build a TIN model from sample points."""
-
     if len(points) < 3:
         raise ValueError("At least 3 vertices are required to build a TIN")
 
@@ -66,25 +65,26 @@ def build_tin_from_points(points: list[SpecialPoint]) -> TinModel:
 
     next_triangle_id = 1
 
+    # Bowyer-Watson inserts points one at a time. Each insertion removes
+    # triangles whose circumcircle contains the point, then retriangulates
+    # the hole boundary with the new vertex.
     for vertex in real_vertices:
-
         triangles, next_triangle_id = _add_vertex_to_triangulation(
-            inserted_vertex = vertex,
-            triangles = triangles,
-            vertex_by_id = vertex_by_id,
-            next_triangle_id = next_triangle_id
+            inserted_vertex=vertex,
+            triangles=triangles,
+            vertex_by_id=vertex_by_id,
+            next_triangle_id=next_triangle_id,
         )
-    
+
     super_vertex_ids = {-1, -2, -3}
     final_triangles = _remove_super_triangle_triangles(triangles, super_vertex_ids)
     final_triangles = _renumber_triangles(final_triangles)
     final_triangles = _attach_triangle_neighbors(final_triangles)
 
     return TinModel(
-        vertices = real_vertices,
-        triangles = final_triangles
+        vertices=real_vertices,
+        triangles=final_triangles,
     )
-
 
 
 def _triangle_edges(triangle: TinTriangle) -> list[tuple[int, int]]:
@@ -97,7 +97,7 @@ def _triangle_edges(triangle: TinTriangle) -> list[tuple[int, int]]:
 
 
 def _boundary_edges(bad_triangles) -> list[tuple[int, int]]:
-    """From a group of “bad triangles”, find the outer boundary of the hole."""
+    """From a group of bad triangles, find the outer boundary of the hole."""
     edge_counter = {}
 
     for triangle in bad_triangles:
@@ -135,7 +135,12 @@ def _triangle_is_bad(triangle, inserted_vertex, vertex_by_id) -> bool:
     return circumcircle_contains(a, b, c, inserted_vertex)
 
 
-def _add_vertex_to_triangulation(inserted_vertex, triangles, vertex_by_id, next_triangle_id):
+def _add_vertex_to_triangulation(
+    inserted_vertex,
+    triangles,
+    vertex_by_id,
+    next_triangle_id,
+):
     bad_triangles = []
     good_triangles = []
 
@@ -163,7 +168,10 @@ def _add_vertex_to_triangulation(inserted_vertex, triangles, vertex_by_id, next_
     return updated_triangles, next_triangle_id
 
 
-def _remove_super_triangle_triangles(triangles: list[TinTriangle], super_vertex_ids: set[int]) -> list[TinTriangle]:
+def _remove_super_triangle_triangles(
+    triangles: list[TinTriangle],
+    super_vertex_ids: set[int],
+) -> list[TinTriangle]:
     final_triangles = []
 
     for triangle in triangles:
@@ -177,7 +185,7 @@ def _remove_super_triangle_triangles(triangles: list[TinTriangle], super_vertex_
         final_triangles.append(triangle)
 
     return final_triangles
-    
+
 
 def _renumber_triangles(triangles: list[TinTriangle]) -> list[TinTriangle]:
     renumbered = []

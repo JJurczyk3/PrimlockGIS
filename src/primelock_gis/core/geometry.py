@@ -1,4 +1,5 @@
 """Shared geometry utilities."""
+
 from dataclasses import dataclass
 
 EPS = 1e-9
@@ -24,34 +25,35 @@ class SegmentIntersection:
     point: Point | None = None
 
 
-# Return True if a and b are almost equal, False otherwise
 def almost_equal(a, b, eps=EPS):
+    """Return True when two numeric values are within tolerance."""
     return abs(a - b) <= eps
 
 
-# Return the distance between points p and q
 def distance(p, q):
+    """Return Euclidean distance between two points."""
     dx = p.x - q.x
     dy = p.y - q.y
     return (dx * dx + dy * dy) ** 0.5
 
 
-# Return the cross product of vectors AB and AC
 def cross(a, b, c):
+    """Return the 2D cross product of vectors AB and AC."""
     return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
 
 
-# Return what is the direction of the turn formed by points a, b, c
 def orientation(a, b, c, eps=EPS):
+    """Classify the turn formed by points a, b, and c."""
     cross_product = cross(a, b, c)
 
     if almost_equal(cross_product, 0, eps):
-        return 0  # Collinear
+        return 0
 
-    return 1 if cross_product > 0 else -1  # Left turn or right turn
+    return 1 if cross_product > 0 else -1
 
 
 def bbox_from_points(a, b):
+    """Return the bounding box of a two-point segment."""
     return Box(
         min_x=min(a.x, b.x),
         min_y=min(a.y, b.y),
@@ -60,8 +62,8 @@ def bbox_from_points(a, b):
     )
 
 
-# Return True if the bounding boxes of box1 and box2 intersect, False otherwise
 def bbox_intersects(box1, box2, eps=EPS):
+    """Return True when two bounding boxes overlap or touch."""
     return not (
         box1.max_x < box2.min_x - eps
         or box2.max_x < box1.min_x - eps
@@ -70,8 +72,8 @@ def bbox_intersects(box1, box2, eps=EPS):
     )
 
 
-# Return True if point p is on the line segment defined by points a and b, False otherwise
 def point_on_segment(p, a, b, eps=EPS):
+    """Return True when point p lies on segment ab."""
     if orientation(a, b, p, eps) != 0:
         return False
 
@@ -82,6 +84,7 @@ def point_on_segment(p, a, b, eps=EPS):
 
 
 def segment_intersects(a, b, c, d, eps=EPS):
+    """Classify the intersection between segments ab and cd."""
     if not bbox_intersects(bbox_from_points(a, b), bbox_from_points(c, d), eps):
         return SegmentIntersection("none")
 
@@ -146,8 +149,8 @@ def segment_intersects(a, b, c, d, eps=EPS):
     return SegmentIntersection("intersect", intersection_point)
 
 
-# Return the signed area of the polygon defined by the list of points
 def polygon_signed_area(points: list[Point]) -> float:
+    """Return signed polygon area; sign indicates ring orientation."""
     if len(points) < 3:
         return 0.0
 
@@ -168,8 +171,8 @@ def distance_squared(a: Point, b: Point) -> float:
     return dx * dx + dy * dy
 
 
-# Return True if point p lies inside the circumcircle of triangle abc.
 def circumcircle_contains(a: Point, b: Point, c: Point, p: Point, eps: float = EPS) -> bool:
+    """Return True when point p lies inside triangle abc's circumcircle."""
     ax = a.x - p.x
     ay = a.y - p.y
     bx = b.x - p.x

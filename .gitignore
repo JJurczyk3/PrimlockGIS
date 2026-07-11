@@ -10,6 +10,7 @@ __pycache__/
 # Build and packaging artifacts
 build/
 dist/
+release/
 wheels/
 *.whl
 
@@ -17,6 +18,7 @@ wheels/
 .DS_Store
 __MACOSX/
 Archive.zip
+*.zip
 
 # Local environments and editor state
 .env

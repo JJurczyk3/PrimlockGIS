@@ -53,6 +53,8 @@ class TinTriangle:
 
 @dataclass(frozen=True)
 class _TinSurfaceTriangle:
+    """Cached triangle geometry used for repeated TIN terrain sampling."""
+
     a: TinVertex
     b: TinVertex
     c: TinVertex
@@ -69,6 +71,7 @@ class _TinSurfaceTriangle:
         b: TinVertex,
         c: TinVertex,
     ) -> "_TinSurfaceTriangle | None":
+        
         denominator = (
             (b.y - c.y) * (a.x - c.x)
             + (c.x - b.x) * (a.y - c.y)
@@ -119,6 +122,8 @@ class _TinSurfaceTriangle:
 
 @dataclass
 class _TinSurfaceIndex:
+    """Small spatial index for finding the TIN triangle under a sample point."""
+
     min_x: float
     min_y: float
     max_x: float
@@ -133,7 +138,10 @@ class _TinSurfaceIndex:
         triangles: list[_TinSurfaceTriangle],
         bounds: tuple[float, float, float, float],
     ) -> "_TinSurfaceIndex":
+        
         min_x, min_y, max_x, max_y = bounds
+        # Keep the index small: it only needs to avoid scanning every triangle
+        # for every terminal cell while rendering terrain backgrounds.
         side = max(1, min(64, round(math.sqrt(max(1, len(triangles))))))
         cells: list[list[_TinSurfaceTriangle]] = [[] for _ in range(side * side)]
         index = cls(

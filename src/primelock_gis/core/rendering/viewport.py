@@ -1,4 +1,7 @@
+"""World-to-terminal viewport transforms."""
+
 from dataclasses import dataclass
+
 from ..geometry import Point
 
 
@@ -14,8 +17,8 @@ class Viewport:
     def __post_init__(self) -> None:
         self._validate()
 
-    # Validate viewport parameters
     def _validate(self) -> None:
+        """Validate viewport dimensions and world bounds."""
         if self.world_max_x <= self.world_min_x:
             raise ValueError("world_max_x must be greater than world_min_x")
         if self.world_max_y <= self.world_min_y:
@@ -24,16 +27,18 @@ class Viewport:
             raise ValueError("view_width must be positive")
         if self.view_height <= 0:
             raise ValueError("view_height must be positive")
-        
-    
+
     def world_to_view(self, x: float, y: float) -> Point:
+        """Convert world coordinates into terminal view coordinates.
+
+        Terminal rows grow downward, so y is flipped during the transform.
+        """
         view_x = (
             (x - self.world_min_x)
             / (self.world_max_x - self.world_min_x)
             * self.view_width
         )
 
-        # Note the flip of the y coordinate
         view_y = self.view_height - (
             (y - self.world_min_y)
             / (self.world_max_y - self.world_min_y)
@@ -42,15 +47,14 @@ class Viewport:
 
         return Point(view_x, view_y)
 
-
     def view_to_world(self, x: float, y: float) -> Point:
+        """Convert terminal view coordinates back into world coordinates."""
         world_x = (
             x / self.view_width
             * (self.world_max_x - self.world_min_x)
             + self.world_min_x
         )
-        
-        # Note the flip of the y coordinate
+
         world_y = (
             (self.view_height - y)
             / self.view_height
@@ -92,7 +96,6 @@ class Viewport:
             view_width=self.view_width,
             view_height=self.view_height,
         )
-    
 
     def resize_viewport(self, new_width: int, new_height: int) -> "Viewport":
         """Return a resized viewport that preserves map proportions.

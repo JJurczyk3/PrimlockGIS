@@ -573,6 +573,12 @@ class SupportPanelApp:
             )
 
         try:
+            popen_kwargs = {}
+            if os.name == "nt" and hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+                popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            else:
+                popen_kwargs["start_new_session"] = True
+
             self.viewer_process = subprocess.Popen(
                 self.viewer_launch_command,
                 cwd=self.working_directory,
@@ -580,7 +586,7 @@ class SupportPanelApp:
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                start_new_session=True,
+                **popen_kwargs,
             )
         except OSError as error:
             return f"ERROR: could not start viewer: {error}"

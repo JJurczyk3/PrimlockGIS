@@ -320,6 +320,8 @@ def trace_contour_segments(
     used_segments: set[int] = set()
     polylines = []
 
+    # Boundary-connected segments are traced first because they represent open
+    # contours. Any unused segments after that pass form closed loops.
     for segment_index, segment in enumerate(segments):
         if segment_index in used_segments:
             continue
@@ -373,6 +375,7 @@ def trace_tin_contour_segments(
     used_segments: set[int] = set()
     polylines = []
 
+    # A TIN contour is open only when it reaches the convex hull boundary.
     for segment_index, segment in enumerate(segments):
         if segment_index in used_segments:
             continue

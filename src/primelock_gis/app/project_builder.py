@@ -24,6 +24,8 @@ def build_project_state(config: ProjectConfig) -> ProjectState:
     """Build all computed project models from configuration."""
     points = load_normalised_sample_points(config.dataset_path)
 
+    # Startup, dataset reloads, and grid setting changes all pass through this
+    # function so every computed model stays tied to the same ProjectConfig.
     if config.interpolation_method == "directional":
         idw_grid = create_grid_model_directional(
             points,
