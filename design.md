@@ -1,17 +1,108 @@
 # Primelock GIS Design Notes
 
-This document tracks the current implementation state and near-term roadmap for the coursework prototype.
+This document describes the current implementation structure and the remaining
+hardening work for the coursework application.
 
 ## Architecture
 
-Primelock GIS is split into four layers:
+Primelock GIS is organised into five practical layers.
 
-- `core/models`: data models for points, grids, TINs, contours, and topology.
-- `core/algorithms`: interpolation, grid construction, grid densification, TIN generation, contour extraction/tracing, topology construction.
-- `core/rendering`: backend-independent scene objects, styles, viewport transforms, and scene builders.
-- `ui/terminal`: terminal canvas, ANSI rendering, input parsing, interactive viewer, and support panel.
+### CLI and application coordination
 
-The terminal UI should call app/core services and scene builders. GIS algorithms should stay in `core`, not in terminal UI modules.
+- `primelock_gis/__main__.py` defines the public `viewer`, `support`, `launch`,
+  `doctor`, and `--version` commands.
+- `app/project_state.py` owns `ProjectConfig` and the current computed
+  `ProjectState`.
+- `app/project_builder.py` loads a dataset and constructs its interpolation
+  grid and TIN. Its safe rebuild path keeps the previous project active if a
+  replacement cannot be built.
+- `app/startup.py` resolves the bundled dataset, creates the initial viewport,
+  starts the local command server, and runs the viewer.
+
+### GIS domain models and algorithms
+
+- `core/models` contains grids, TINs, contours, and vector feature models.
+- `core/algorithms` contains interpolation, grid construction and
+  densification, TIN generation, contour extraction/tracing, and topology
+  processing.
+- `core/load_data.py`, `core/geometry.py`, and `core/storage` provide dataset,
+  geometry, and topology-export support.
+
+This layer contains the GIS work independently of terminal or Windows launch
+details.
+
+### Rendering
+
+- `core/rendering` defines backend-independent scenes, drawable objects,
+  symbology, scene builders, viewport transforms, and the renderer interface.
+- `ui/terminal/renderer2d.py` projects those drawables into terminal cells.
+- `ui/terminal/canvas.py` combines foreground/background colour, Unicode line
+  characters, and Braille sub-cells into the final text frame.
+
+### Terminal platform and user interface
+
+- `ui/terminal/events.py` defines normalized key, mouse, and resize events.
+- `ui/terminal/session.py` owns alternate-screen, cursor, mouse, and cleanup
+  behavior shared by all platforms.
+- `ui/terminal/backends/posix.py` preserves the macOS/Linux cbreak and VT input
+  path. `backends/windows.py` uses native Win32 console records while retaining
+  ANSI/virtual-terminal output.
+- `ui/terminal/interactive_app.py` coordinates the viewer, visible layers,
+  viewport interaction, feature selection, scene caching, and support
+  commands.
+- `ui/terminal/support_panel.py` provides the second-terminal control panel and
+  a localhost command channel that supports per-launch authentication.
+
+### Launch and packaging
+
+- `app/launcher.py` resolves source/frozen runtime paths, chooses a free
+  loopback port and per-launch identity, and opens the viewer and support panel
+  in Windows Terminal or ordinary console windows.
+- `packaging/pyinstaller` defines the Windows console-mode frozen application.
+- `packaging/runtime` contains the professor-facing launch templates.
+- `tools/build_standalone.py` assembles the portable runtime and release ZIP.
+
+The portable launcher is Windows-specific, but the source viewer retains its
+POSIX terminal backend for macOS and Linux.
+
+## Data and Control Flow
+
+The primary GIS data path is:
+
+```text
+CSV dataset
+  -> normalized sample points
+  -> ProjectConfig + project builder
+  -> ProjectState (points, interpolation grid, TIN)
+  -> contour/terrain/layer scene builders
+  -> backend-independent Scene
+  -> TerminalRenderer2D
+  -> TerminalCanvas
+  -> ANSI, Unicode, and Braille frame
+```
+
+Grid or TIN contours are derived lazily from the current project and viewer
+settings. Dataset changes and grid-division changes build a replacement
+`ProjectState`; the viewer swaps it in only after the rebuild succeeds.
+
+The interactive control path is:
+
+```text
+POSIX VT input or Windows console records
+  -> TerminalSession platform backend
+  -> KeyEvent / MouseEvent / ResizeEvent
+  -> viewer or support controller
+  -> state/viewport change
+  -> dirty-frame render
+```
+
+For one-click Windows launch, the launcher passes the same free localhost port
+and random session identity to both child processes. The viewer binds only to
+`127.0.0.1`. A socket handler authenticates each request and places it on the
+viewer's command queue; the viewer executes it in its event loop and returns
+the result through a reply queue. The support panel retries while the viewer is
+starting and displays a waiting state instead of treating startup delay as an
+immediate failure.
 
 ## Completed
 
@@ -39,9 +130,8 @@ The terminal UI should call app/core services and scene builders. GIS algorithms
 - Runtime commands for layer toggles, contour settings, grid divisions, terrain style, dataset load/reload, config summary, and model summary.
 - Support-panel typed grid division controls for larger grid sizes.
 - Safe project rebuild path that keeps the current project if a dataset load or rebuild fails.
-- Tests for interpolation, grid models, TIN, contours, topology, rendering, terminal input, viewer commands, support panel behavior, config validation, and project rebuild safety.
 
-## Partially Implemented / Needs Hardening
+## Known Limitations
 
 - Directional interpolation is implemented in core and supported by `ProjectConfig`, but the viewer/support panel does not yet expose a runtime interpolation-method control.
 - Project rebuilds are structured behind a service, but expensive rebuilds still run synchronously.
@@ -50,6 +140,13 @@ The terminal UI should call app/core services and scene builders. GIS algorithms
 - Topology export returns table-like Python records; file export formats are not yet formalized.
 - Support panel uses typed admin commands for dataset paths; there is no interactive path input widget yet.
 - Error messages are practical but not yet centralized.
+- The viewer and support controllers still combine several UI responsibilities;
+  further module separation is desirable, but is not required for the current
+  runtime.
+- Full mouse behavior depends on terminal-emulator support. A Windows console
+  that cannot enable mouse records reports a keyboard-only diagnostic.
+- The support channel is deliberately local to one machine and is not a remote
+  or multi-user service.
 
 ## Next Priority
 
@@ -67,7 +164,6 @@ The terminal UI should call app/core services and scene builders. GIS algorithms
    - failed worker result preserves the old `ProjectState`
 
 3. Harden topology:
-   - more tests for crossing and shared contour networks
    - polygon orientation and adjacency validation
    - duplicate/near-duplicate node tolerance review
 

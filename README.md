@@ -22,14 +22,68 @@ The current application works with sampled point data, builds interpolation grid
 - Interactive terminal viewer with pan, zoom, layer toggles, feature selection, and status rows.
 - Support/control panel in a second terminal with layer controls, model controls, dataset reload, and admin commands.
 
-## Requirements
+## Source Development Requirements
 
 - Python 3.13+
 - `uv`
 - Runtime dependency: `polars`
-- Development/test dependency: `pytest`
+- Build dependencies are declared in the `dev` dependency group.
 
 Install and run through `uv`; no separate GIS packages are required.
+
+## Teacher Quick Start
+
+For the portable Windows submission:
+
+1. Extract the complete `PrimelockGIS-Windows-x64-v0.1.1.zip` file.
+2. Open the extracted `PrimelockGIS-Windows-x64-v0.1.1` folder.
+3. Double-click `START_PRIMELOCK_GIS.bat` for English, or
+   `启动_PRIMELOCK_GIS_中文版.bat` for Simplified Chinese.
+
+The viewer and Support / Control panel open automatically and connect over a
+private localhost session. The portable package does not require Python, `uv`,
+PowerShell policy changes, administrator access, or internet access.
+
+An optional `PrimelockGIS-Windows-x64-Setup-v0.1.1.exe` is also available. It
+installs the same offline runtime for the current user, adds a Start menu
+shortcut for each language, offers optional English/Chinese desktop shortcuts,
+and includes an uninstaller.
+The portable ZIP remains the primary submission and fallback. The source ZIP
+contains the reviewable application source, documentation, data, and build
+definitions; it is not a standalone runtime.
+
+To run the source version manually, open two terminal windows in the project folder.
+
+Terminal 1:
+
+```bash
+uv run python -m primelock_gis viewer
+```
+
+Terminal 2:
+
+```bash
+uv run python -m primelock_gis support
+```
+
+For the Simplified Chinese source interface, add `--language zh-CN` after either
+mode:
+
+```bash
+uv run python -m primelock_gis viewer --language zh-CN
+uv run python -m primelock_gis support --language zh-CN
+```
+
+Manual source modes default to `127.0.0.1:8765`. The one-click launcher selects
+a free localhost port and gives both processes the same per-launch identity.
+
+## Platform Notes
+
+- Linux and macOS: use a normal terminal with ANSI escape support.
+- Windows: the one-click launcher prefers two titled Windows Terminal tabs and falls back to two ordinary console windows. Kitty is not required.
+- If `uv` is not installed, install it with `python -m pip install uv` on Linux/macOS or `py -m pip install uv` on Windows.
+- If the terminal asks about firewall/network access, allow local connections for `127.0.0.1`.
+- For offline standalone builds, see `PACKAGING.md`.
 
 ## Run
 
@@ -45,17 +99,46 @@ Start the support/control panel in a second terminal:
 uv run python -m primelock_gis support
 ```
 
-Render the contour demo script:
+## Final Assignment Checklist
+
+- Executable program: extract the Windows runtime ZIP and double-click `START_PRIMELOCK_GIS.bat`.
+- Complete source: submit the versioned source ZIP containing the application,
+  documentation, data, and build/packaging files.
+- Printed source: generate the curated GIS-first copy described in
+  `COURSEWORK_SOURCE_GUIDE.md`; it complements rather than replaces the source
+  ZIP.
+- Printed run result: include the viewer/support-panel screenshots or terminal output requested by the coursework brief.
+- Downloadable files: submit the versioned Windows runtime and source ZIPs described in `PACKAGING.md`.
+
+## Printed Source Submission
+
+The complete source ZIP is the authoritative electronic submission. It keeps
+the application code, documentation, sample data, and release tooling needed
+for review and reproducible builds.
+
+The paper/PDF source copy is intentionally curated and GIS-first. It presents
+the project architecture, data models, algorithms, rendering pipeline, and
+representative application/platform integration without printing thousands of
+lines of repetitive terminal layout or operating-system plumbing. It is not a
+standalone build and must not be used as a substitute for the complete source
+ZIP.
+
+The English selection rationale is in
+[`COURSEWORK_SOURCE_GUIDE.md`](COURSEWORK_SOURCE_GUIDE.md). The final physical
+submission uses the Chinese introduction and AI-use disclosure in
+[`COURSEWORK_SOURCE_GUIDE_ZH.md`](COURSEWORK_SOURCE_GUIDE_ZH.md), followed by
+the GIS-first code listing with translated comments and docstrings. Build the
+versioned, A4 PDF with:
 
 ```bash
-uv run python scripts/render_contours_demo.py --show-grid
+uv run python tools/build_chinese_submission_report.py
 ```
 
-Run tests:
-
-```bash
-uv run pytest
-```
+The result is written to `output/pdf/PrimelockGIS-中文源代码报告-v<version>.pdf`.
+Python identifiers, APIs, protocol tokens, and runtime strings remain
+unchanged; only the printed explanatory prose is translated. The older
+[`tools/build_printed_source.py`](tools/build_printed_source.py) remains
+available for the standalone English HTML copy.
 
 ## Viewer Controls
 
@@ -131,7 +214,6 @@ The included coursework dataset has 43 sample points.
 
 - `src/primelock_gis/core`: geometry, models, algorithms, loading, topology export.
 - `src/primelock_gis/core/rendering`: scene objects, symbology, viewport, scene builders.
-- `src/primelock_gis/ui/terminal`: terminal canvas, renderer, interactive viewer, support panel.
-- `src/primelock_gis/app`: project config/state, rebuild service, startup workflow.
-- `scripts`: small command-line demos.
-- `tests`: unit tests for algorithms, rendering, input, viewer commands, and support panel behavior.
+- `src/primelock_gis/ui/terminal`: terminal platform backends, canvas, renderer, interactive viewer, and support panel.
+- `src/primelock_gis/app`: project config/state, rebuild service, startup workflow, resource resolution, and Windows launch orchestration.
+- `packaging` and `tools`: PyInstaller configuration, runtime launch templates, and release/submission builders.

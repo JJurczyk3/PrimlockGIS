@@ -1,11 +1,8 @@
-"""Terminal capability detection.
+"""Terminal capability detection."""
 
-终端能力检测。
-"""
-
-from dataclasses import dataclass
 import os
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 
 @dataclass
@@ -16,8 +13,9 @@ class TerminalCapabilities:
     supports_color: bool = True
     supports_truecolor: bool = False
 
-# Check what terminal the user is using.
+
 def detect_terminal_name(env: Mapping[str, str] | None = None) -> str:
+    """Detect the current terminal family from environment variables."""
     if env is None:
         env = os.environ
 
@@ -26,6 +24,9 @@ def detect_terminal_name(env: Mapping[str, str] | None = None) -> str:
 
     term_lower = term.lower()
     term_program_lower = term_program.lower()
+
+    if env.get("WT_SESSION"):
+        return "windows-terminal"
 
     if "ghostty" in term_lower or "ghostty" in term_program_lower:
         return "ghostty"
@@ -47,18 +48,22 @@ def detect_terminal_name(env: Mapping[str, str] | None = None) -> str:
 
     return "unknown"
 
-# Check what color range is supported.
+
 def supports_truecolor(env: Mapping[str, str] | None = None) -> bool:
+    """Return True when the terminal advertises 24-bit colour support."""
     if env is None:
         env = os.environ
 
     color_term = env.get("COLORTERM", "")
     color_term_lower = color_term.lower()
 
-    return color_term_lower in ("truecolor", "24bit")
+    return color_term_lower in ("truecolor", "24bit") or bool(env.get("WT_SESSION"))
 
-# Return the terminal capabilities.
-def detect_terminal_capabilities(env: Mapping[str, str] | None = None) -> TerminalCapabilities:
+
+def detect_terminal_capabilities(
+    env: Mapping[str, str] | None = None,
+) -> TerminalCapabilities:
+    """Return the capability set used by terminal renderers."""
     name = detect_terminal_name(env)
     truecolor = supports_truecolor(env)
 

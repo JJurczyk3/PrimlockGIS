@@ -27,7 +27,7 @@ def initial_viewport_from_points(
     world_max_x = max(point.x for point in points)
     world_min_y = min(point.y for point in points)
     world_max_y = max(point.y for point in points)
-    
+
     world_width = world_max_x - world_min_x
     world_height = world_max_y - world_min_y
 

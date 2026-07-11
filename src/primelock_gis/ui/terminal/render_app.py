@@ -1,4 +1,4 @@
-""" Terminal application loop. """
+"""Terminal application loop."""
 
 import shutil
 
@@ -33,7 +33,9 @@ class TerminalRenderApp:
         height = self.viewport.view_height
         width = self.viewport.view_width
         self.canvas = TerminalCanvas(width, height)
-        self.renderer = TerminalRenderer2D(self.canvas, self.viewport, self.capabilities)
+        self.renderer = TerminalRenderer2D(
+            self.canvas, self.viewport, self.capabilities
+        )
         self.last_height = height
         self.last_width = width
 

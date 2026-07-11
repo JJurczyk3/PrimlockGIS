@@ -53,9 +53,9 @@ def status_color(status: str, theme: TerminalTheme = TERMINAL_THEME) -> str:
     """Return a semantic colour for a status or command response."""
     if status.startswith(("OK:", "SUCCESS:")):
         return theme.success
-    if status.startswith(("WARN:", "WARNING:")):
+    if status.startswith(("WARN:", "WARNING:", "警告：")):
         return theme.warning
-    if status.startswith(("ERROR:", "FAIL:")):
+    if status.startswith(("ERROR:", "FAIL:", "错误：")):
         return theme.error
     return theme.foreground
 

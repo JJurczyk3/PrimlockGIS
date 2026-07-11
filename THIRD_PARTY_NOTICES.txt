@@ -1,0 +1,42 @@
+PRIMELOCK GIS THIRD-PARTY NOTICES
+=================================
+
+This portable distribution includes components from the following projects.
+Their licenses permit redistribution subject to their respective terms.
+
+Python 3.13
+Copyright Python Software Foundation and contributors.
+License: Python Software Foundation License Version 2.
+Project: https://www.python.org/
+Complete text: app\_licenses\PYTHON_LICENSE.txt
+
+Polars 1.40.1 and polars-runtime-32 1.40.1
+Copyright Polars contributors.
+License: MIT License.
+Project: https://pola.rs/
+The Polars distribution metadata and license are retained inside app\_internal.
+
+PyInstaller bootloader 6.21.0
+Copyright PyInstaller Development Team.
+License: GNU General Public License Version 2 with the PyInstaller exception
+for distributing bundled applications.
+Project: https://pyinstaller.org/
+Complete text: app\_licenses\PYINSTALLER_COPYING.txt
+
+OpenSSL libraries bundled by the Python runtime
+License: Apache License 2.0.
+Project: https://www.openssl.org/
+Complete text: app\_licenses\OPENSSL_LICENSE.txt
+
+libffi bundled by the Python runtime
+License: MIT-style license.
+Project: https://sourceware.org/libffi/
+Complete text: app\_licenses\LIBFFI_LICENSE.txt
+
+Microsoft Visual C++ Runtime and Universal C Runtime components
+Copyright Microsoft Corporation.
+Redistributed under the applicable Microsoft software license terms.
+
+Primelock GIS itself is an Advanced GIS coursework project. The complete
+redistribution texts retained by this package are listed above; Polars retains
+its license in its own distribution metadata under app\_internal.

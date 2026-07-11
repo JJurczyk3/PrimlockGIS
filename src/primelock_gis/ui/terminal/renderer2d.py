@@ -1,19 +1,17 @@
-""" A 2D renderer for the terminal. """
+"""Terminal 2D renderer."""
 
+from primelock_gis.core.geometry import Point
 from primelock_gis.core.rendering.renderer_base import RendererBase
-from primelock_gis.core.rendering.viewport import Viewport
 from primelock_gis.core.rendering.scene import (
-    DrawableTerrain,
     DrawablePoint,
     DrawablePolyline,
+    DrawableTerrain,
     DrawableText,
     Scene,
 )
-from primelock_gis.ui.terminal.canvas import TerminalCanvas
-from primelock_gis.ui.terminal.canvas import parse_hex_color
+from primelock_gis.core.rendering.viewport import Viewport
+from primelock_gis.ui.terminal.canvas import TerminalCanvas, parse_hex_color
 from primelock_gis.ui.terminal.capabilities import TerminalCapabilities
-from primelock_gis.core.geometry import Point
-
 
 OPPOSITE_DIRECTIONS = {
     "left": "right",
@@ -37,7 +35,7 @@ class TerminalRenderer2D(RendererBase):
         self.canvas = canvas
         self.viewport = viewport
         self.capabilities = capabilities
-    
+
     def clear(self) -> None:
         self.canvas.clear()
 
@@ -49,6 +47,8 @@ class TerminalRenderer2D(RendererBase):
 
         value_min, value_max = surface.value_range()
 
+        # Terrain is painted as a background layer so grid, TIN, contours, and
+        # point symbols can still draw readable foreground characters on top.
         for cell_y in range(self.canvas.height):
             for cell_x in range(self.canvas.width):
                 world_point = self.viewport.view_to_world(cell_x + 0.5, cell_y + 0.5)
@@ -69,8 +69,8 @@ class TerminalRenderer2D(RendererBase):
                     char=drawable.style.char,
                 )
 
-    # Render points
     def draw_point(self, drawable: DrawablePoint) -> None:
+        """Render one point symbol."""
         if not self._point_intersects_view(drawable.position):
             return
 
@@ -82,8 +82,8 @@ class TerminalRenderer2D(RendererBase):
             foreground=drawable.style.color,
         )
 
-    # Render polylines
     def draw_polyline(self, drawable: DrawablePolyline) -> None:
+        """Render linework as terminal cells or Braille sub-cells."""
         if not self._points_intersect_view(drawable.points):
             return
 
@@ -94,9 +94,9 @@ class TerminalRenderer2D(RendererBase):
 
         cell_points = self._world_points_to_cell_points(drawable.points)
         self._draw_cell_polyline(cell_points, drawable.style, close=False)
-            
-    # Render text
+
     def draw_text(self, drawable: DrawableText) -> None:
+        """Render one text label."""
         if not self._point_intersects_view(drawable.position):
             return
 
@@ -108,12 +108,12 @@ class TerminalRenderer2D(RendererBase):
             foreground=drawable.style.color,
         )
 
-    # Render scene
     def render_scene(self, scene: Scene) -> None:
+        """Render all visible scene layers in their configured order."""
         super().render_scene(scene)
 
-    # Output as a string on a screen.
     def to_string(self) -> str:
+        """Return the rendered terminal frame as text."""
         return self.canvas.to_string(self.capabilities)
 
     def _point_intersects_view(self, point: Point) -> bool:
@@ -147,7 +147,9 @@ class TerminalRenderer2D(RendererBase):
             or min_y > self.viewport.world_max_y
         )
 
-    def _terrain_color(self, value: float, value_min: float, value_max: float, style) -> str:
+    def _terrain_color(
+        self, value: float, value_min: float, value_max: float, style
+    ) -> str:
         if value_max == value_min:
             return self._apply_opacity(style.low_mid_color, style)
 
@@ -209,21 +211,11 @@ class TerminalRenderer2D(RendererBase):
         if foreground_rgb is None or background_rgb is None:
             return foreground
 
-        red = round(
-            foreground_rgb[0] * opacity
-            + background_rgb[0] * (1.0 - opacity)
-        )
-        green = round(
-            foreground_rgb[1] * opacity
-            + background_rgb[1] * (1.0 - opacity)
-        )
-        blue = round(
-            foreground_rgb[2] * opacity
-            + background_rgb[2] * (1.0 - opacity)
-        )
+        red = round(foreground_rgb[0] * opacity + background_rgb[0] * (1.0 - opacity))
+        green = round(foreground_rgb[1] * opacity + background_rgb[1] * (1.0 - opacity))
+        blue = round(foreground_rgb[2] * opacity + background_rgb[2] * (1.0 - opacity))
         return f"#{red:02X}{green:02X}{blue:02X}"
-    
-    # Convert world coordinates of a single point to screen coordinates.
+
     def _world_point_to_cell(self, point: Point) -> tuple[int, int]:
         view_point = self.viewport.world_to_view(point.x, point.y)
         return (
@@ -231,7 +223,6 @@ class TerminalRenderer2D(RendererBase):
             self._view_coordinate_to_cell(view_point.y, self.canvas.height),
         )
 
-    # Convert one view coordinate to a drawable terminal cell index.
     def _view_coordinate_to_cell(self, value: float, size: int) -> int:
         cell = round(value)
 
@@ -240,11 +231,11 @@ class TerminalRenderer2D(RendererBase):
 
         return cell
 
-    # Convert world coordinates of polyline nodes to screen coordinates.
-    def _world_points_to_cell_points(self, points: list[Point]) -> list[tuple[int, int]]:
+    def _world_points_to_cell_points(
+        self, points: list[Point]
+    ) -> list[tuple[int, int]]:
         return [self._world_point_to_cell(point) for point in points]
 
-    # Convert world coordinates of polyline nodes to fractional view coordinates.
     def _world_points_to_view_points(
         self,
         points: list[Point],
@@ -256,8 +247,7 @@ class TerminalRenderer2D(RendererBase):
             view_points.append((view_point.x, view_point.y))
 
         return view_points
-    
-    # Draw connected line segments between terminal cell coordinates.
+
     def _draw_cell_polyline(self, cell_points, style, close: bool = False) -> None:
         if len(cell_points) < 2:
             return
@@ -356,7 +346,9 @@ class TerminalRenderer2D(RendererBase):
         for cell_x, cell_y in self._iter_sampled_line_cells(x1, y1, x2, y2):
             self.canvas.set_cell(cell_x, cell_y, char, foreground=color)
 
-    def _draw_styled_line_cells(self, x1: int, y1: int, x2: int, y2: int, style) -> None:
+    def _draw_styled_line_cells(
+        self, x1: int, y1: int, x2: int, y2: int, style
+    ) -> None:
         clipped = self._clip_line_to_rect(
             x1,
             y1,

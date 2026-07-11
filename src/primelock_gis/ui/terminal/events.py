@@ -1,4 +1,4 @@
-""" Terminal input event models. """
+"""Terminal input event models."""
 
 from dataclasses import dataclass, field
 
@@ -18,4 +18,10 @@ class MouseEvent:
     raw_sequence: str | None = field(default=None, compare=False)
 
 
-TerminalEvent = KeyEvent | MouseEvent
+@dataclass
+class ResizeEvent:
+    width: int
+    height: int
+
+
+TerminalEvent = KeyEvent | MouseEvent | ResizeEvent

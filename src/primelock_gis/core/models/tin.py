@@ -1,7 +1,7 @@
 """Data structures for TIN generation and topology."""
 
-from dataclasses import dataclass, field
 import math
+from dataclasses import dataclass, field
 
 TinEdgeKey = tuple[int, int]
 TIN_CONTAINMENT_TOLERANCE = 1e-9
@@ -9,6 +9,8 @@ TIN_CONTAINMENT_TOLERANCE = 1e-9
 
 @dataclass
 class TinVertex:
+    """A TIN vertex with elevation and optional source-point identity."""
+
     id: int
     x: float
     y: float
@@ -18,16 +20,17 @@ class TinVertex:
 
 @dataclass
 class TinTriangle:
+    """A triangle with edge-aligned neighbour and topology references."""
+
     id: int
     vertex_ids: tuple[int, int, int]
-    # Neighbor across each implied edge:
+    # One neighbour corresponds to each implied edge.
     neighbor_triangle_ids: tuple[int | None, int | None, int | None] = (
         None,
         None,
         None,
     )
-    # GIS arc or boundary represented by each triangle edge. None means this
-    # is an ordinary internal triangulation edge for now.
+    # None marks an ordinary internal triangulation edge.
     edge_arc_ids: tuple[int | None, int | None, int | None] = (
         None,
         None,
@@ -53,6 +56,8 @@ class TinTriangle:
 
 @dataclass(frozen=True)
 class _TinSurfaceTriangle:
+    """Cached triangle geometry used for repeated TIN terrain sampling."""
+
     a: TinVertex
     b: TinVertex
     c: TinVertex
@@ -69,10 +74,7 @@ class _TinSurfaceTriangle:
         b: TinVertex,
         c: TinVertex,
     ) -> "_TinSurfaceTriangle | None":
-        denominator = (
-            (b.y - c.y) * (a.x - c.x)
-            + (c.x - b.x) * (a.y - c.y)
-        )
+        denominator = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y)
 
         if abs(denominator) <= TIN_CONTAINMENT_TOLERANCE:
             return None
@@ -119,6 +121,8 @@ class _TinSurfaceTriangle:
 
 @dataclass
 class _TinSurfaceIndex:
+    """Small spatial index for finding the TIN triangle under a sample point."""
+
     min_x: float
     min_y: float
     max_x: float
@@ -134,6 +138,7 @@ class _TinSurfaceIndex:
         bounds: tuple[float, float, float, float],
     ) -> "_TinSurfaceIndex":
         min_x, min_y, max_x, max_y = bounds
+        # The small index avoids scanning every triangle per terrain cell.
         side = max(1, min(64, round(math.sqrt(max(1, len(triangles))))))
         cells: list[list[_TinSurfaceTriangle]] = [[] for _ in range(side * side)]
         index = cls(
@@ -157,12 +162,7 @@ class _TinSurfaceIndex:
         return index
 
     def candidates_at(self, x: float, y: float) -> list[_TinSurfaceTriangle]:
-        if (
-            x < self.min_x
-            or x > self.max_x
-            or y < self.min_y
-            or y > self.max_y
-        ):
+        if x < self.min_x or x > self.max_x or y < self.min_y or y > self.max_y:
             return []
 
         col, row = self._cell_for_point(x, y)
@@ -192,6 +192,8 @@ class _TinSurfaceIndex:
 
 @dataclass
 class TinModel:
+    """A triangulated surface with cached lookup and sampling structures."""
+
     vertices: list[TinVertex]
     triangles: list[TinTriangle]
     _vertex_by_id_cache: dict[int, TinVertex] | None = field(
@@ -232,9 +234,7 @@ class TinModel:
     def _cached_vertex_by_id(self) -> dict[int, TinVertex]:
         """Return the cached vertex lookup used by repeated surface sampling."""
         if self._vertex_by_id_cache is None:
-            self._vertex_by_id_cache = {
-                vertex.id: vertex for vertex in self.vertices
-            }
+            self._vertex_by_id_cache = {vertex.id: vertex for vertex in self.vertices}
 
         return self._vertex_by_id_cache
 

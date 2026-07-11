@@ -1,17 +1,34 @@
 """Shared geometry utilities."""
+
 from dataclasses import dataclass
+from math import hypot
+from typing import Literal, Protocol
 
 EPS = 1e-9
 
 
+class Coordinate2D(Protocol):
+    """Structural type for objects with x/y coordinates."""
+
+    x: float
+    y: float
+
+
+IntersectionKind = Literal["none", "touch", "intersect", "overlap"]
+
+
 @dataclass(frozen=True)
 class Point:
+    """An immutable 2D coordinate."""
+
     x: float
     y: float
 
 
 @dataclass(frozen=True)
 class Box:
+    """An axis-aligned 2D bounding box."""
+
     min_x: float
     min_y: float
     max_x: float
@@ -20,38 +37,44 @@ class Box:
 
 @dataclass(frozen=True)
 class SegmentIntersection:
-    kind: str
+    """The classified result of a segment-intersection test."""
+
+    kind: IntersectionKind
     point: Point | None = None
 
 
-# Return True if a and b are almost equal, False otherwise
-def almost_equal(a, b, eps=EPS):
+def almost_equal(a: float, b: float, eps: float = EPS) -> bool:
+    """Return True when two numeric values are within tolerance."""
     return abs(a - b) <= eps
 
 
-# Return the distance between points p and q
-def distance(p, q):
-    dx = p.x - q.x
-    dy = p.y - q.y
-    return (dx * dx + dy * dy) ** 0.5
+def distance(p: Coordinate2D, q: Coordinate2D) -> float:
+    """Return Euclidean distance between two points."""
+    return hypot(p.x - q.x, p.y - q.y)
 
 
-# Return the cross product of vectors AB and AC
-def cross(a, b, c):
+def cross(a: Coordinate2D, b: Coordinate2D, c: Coordinate2D) -> float:
+    """Return the 2D cross product of vectors AB and AC."""
     return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
 
 
-# Return what is the direction of the turn formed by points a, b, c
-def orientation(a, b, c, eps=EPS):
+def orientation(
+    a: Coordinate2D,
+    b: Coordinate2D,
+    c: Coordinate2D,
+    eps: float = EPS,
+) -> int:
+    """Classify the turn formed by points a, b, and c."""
     cross_product = cross(a, b, c)
 
     if almost_equal(cross_product, 0, eps):
-        return 0  # Collinear
+        return 0
 
-    return 1 if cross_product > 0 else -1  # Left turn or right turn
+    return 1 if cross_product > 0 else -1
 
 
-def bbox_from_points(a, b):
+def bbox_from_points(a: Coordinate2D, b: Coordinate2D) -> Box:
+    """Return the bounding box of a two-point segment."""
     return Box(
         min_x=min(a.x, b.x),
         min_y=min(a.y, b.y),
@@ -60,8 +83,8 @@ def bbox_from_points(a, b):
     )
 
 
-# Return True if the bounding boxes of box1 and box2 intersect, False otherwise
-def bbox_intersects(box1, box2, eps=EPS):
+def bbox_intersects(box1: Box, box2: Box, eps: float = EPS) -> bool:
+    """Return True when two bounding boxes overlap or touch."""
     return not (
         box1.max_x < box2.min_x - eps
         or box2.max_x < box1.min_x - eps
@@ -70,8 +93,13 @@ def bbox_intersects(box1, box2, eps=EPS):
     )
 
 
-# Return True if point p is on the line segment defined by points a and b, False otherwise
-def point_on_segment(p, a, b, eps=EPS):
+def point_on_segment(
+    p: Coordinate2D,
+    a: Coordinate2D,
+    b: Coordinate2D,
+    eps: float = EPS,
+) -> bool:
+    """Return True when point p lies on segment ab."""
     if orientation(a, b, p, eps) != 0:
         return False
 
@@ -81,7 +109,14 @@ def point_on_segment(p, a, b, eps=EPS):
     )
 
 
-def segment_intersects(a, b, c, d, eps=EPS):
+def segment_intersects(
+    a: Point,
+    b: Point,
+    c: Point,
+    d: Point,
+    eps: float = EPS,
+) -> SegmentIntersection:
+    """Classify the intersection between segments ab and cd."""
     if not bbox_intersects(bbox_from_points(a, b), bbox_from_points(c, d), eps):
         return SegmentIntersection("none")
 
@@ -94,37 +129,11 @@ def segment_intersects(a, b, c, d, eps=EPS):
     c_minus_a_x = c.x - a.x
     c_minus_a_y = c.y - a.y
 
-    # Parallel case
     if almost_equal(denominator, 0, eps):
-        # Parallel but not collinear
         if not almost_equal(cross(a, b, c), 0, eps):
             return SegmentIntersection("none")
+        return _collinear_segment_intersection(a, b, c, d, eps)
 
-        # Collinear: check shared endpoints
-        overlap_points = []
-
-        for p in (a, b):
-            if point_on_segment(p, c, d, eps):
-                overlap_points.append(p)
-
-        for p in (c, d):
-            if point_on_segment(p, a, b, eps):
-                overlap_points.append(p)
-
-        unique_points = []
-        for p in overlap_points:
-            if not any(distance(p, q) <= eps for q in unique_points):
-                unique_points.append(p)
-
-        if len(unique_points) == 0:
-            return SegmentIntersection("none")
-
-        if len(unique_points) == 1:
-            return SegmentIntersection("touch", unique_points[0])
-
-        return SegmentIntersection("overlap")
-
-    # Non-parallel case
     t = (c_minus_a_x * s_y - c_minus_a_y * s_x) / denominator
     u = (c_minus_a_x * r_y - c_minus_a_y * r_x) / denominator
 
@@ -146,8 +155,32 @@ def segment_intersects(a, b, c, d, eps=EPS):
     return SegmentIntersection("intersect", intersection_point)
 
 
-# Return the signed area of the polygon defined by the list of points
+def _collinear_segment_intersection(
+    a: Point,
+    b: Point,
+    c: Point,
+    d: Point,
+    eps: float,
+) -> SegmentIntersection:
+    overlap_points = [point for point in (a, b) if point_on_segment(point, c, d, eps)]
+    overlap_points.extend(
+        point for point in (c, d) if point_on_segment(point, a, b, eps)
+    )
+
+    unique_points: list[Point] = []
+    for point in overlap_points:
+        if not any(distance(point, existing) <= eps for existing in unique_points):
+            unique_points.append(point)
+
+    if not unique_points:
+        return SegmentIntersection("none")
+    if len(unique_points) == 1:
+        return SegmentIntersection("touch", unique_points[0])
+    return SegmentIntersection("overlap")
+
+
 def polygon_signed_area(points: list[Point]) -> float:
+    """Return signed polygon area; sign indicates ring orientation."""
     if len(points) < 3:
         return 0.0
 
@@ -162,14 +195,21 @@ def polygon_signed_area(points: list[Point]) -> float:
     return total / 2
 
 
-def distance_squared(a: Point, b: Point) -> float:
+def distance_squared(a: Coordinate2D, b: Coordinate2D) -> float:
+    """Return squared Euclidean distance without taking a square root."""
     dx = a.x - b.x
     dy = a.y - b.y
     return dx * dx + dy * dy
 
 
-# Return True if point p lies inside the circumcircle of triangle abc.
-def circumcircle_contains(a: Point, b: Point, c: Point, p: Point, eps: float = EPS) -> bool:
+def circumcircle_contains(
+    a: Coordinate2D,
+    b: Coordinate2D,
+    c: Coordinate2D,
+    p: Coordinate2D,
+    eps: float = EPS,
+) -> bool:
+    """Return True when point p lies inside triangle abc's circumcircle."""
     ax = a.x - p.x
     ay = a.y - p.y
     bx = b.x - p.x

@@ -7,9 +7,16 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 
+# Local development validation (not part of the public submission)
+tests/
+
 # Build and packaging artifacts
 build/
 dist/
+release/
+output/
+temp/
+tmp/
 wheels/
 *.whl
 
@@ -17,6 +24,7 @@ wheels/
 .DS_Store
 __MACOSX/
 Archive.zip
+*.zip
 
 # Local environments and editor state
 .env
@@ -26,9 +34,6 @@ venv/
 env/
 .idea/
 .vscode/
-
-# Local uv cache/lock state for this coursework workspace
-uv.lock
 
 # Large local reference documents
 *.pdf

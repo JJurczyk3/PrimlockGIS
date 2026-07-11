@@ -1,30 +1,31 @@
 """Create drawable objects from GIS data."""
 
+from primelock_gis.core.geometry import Point
 from primelock_gis.core.models.contour import ContourPolyline
+from primelock_gis.core.models.grid import GridModel
+from primelock_gis.core.models.tin import TinModel
 from primelock_gis.core.models.vector import SpecialPoint, TopologyModel
 from primelock_gis.core.rendering.scene import (
-    DrawableTerrain,
     DrawablePoint,
     DrawablePolyline,
+    DrawableTerrain,
     DrawableText,
     Scene,
+    TerrainSource,
     TerrainSurface,
 )
-from primelock_gis.core.geometry import Point
 from primelock_gis.core.rendering.symbology import (
     PointStyle,
     PolylineStyle,
-    TextStyle,
     TerrainStyle,
+    TextStyle,
 )
-from primelock_gis.core.models.grid import GridModel
-from primelock_gis.core.models.tin import TinModel
 
 
 def terrain_to_scene(
     surface: TerrainSurface,
     style: TerrainStyle | None = None,
-    source: str = "grid",
+    source: TerrainSource = "grid",
 ) -> Scene:
     """Convert a sampled terrain surface to a terrain colour scene layer."""
     if style is None:
@@ -41,8 +42,11 @@ def terrain_to_scene(
     )
 
 
-def points_to_scene(points: list[SpecialPoint], style: PointStyle | None = None) -> Scene:
-    """Convert the GIS coordinates to points on the screen."""
+def points_to_scene(
+    points: list[SpecialPoint],
+    style: PointStyle | None = None,
+) -> Scene:
+    """Convert sample points into drawable world-coordinate scene objects."""
     if style is None:
         style = PointStyle()
 
@@ -57,8 +61,11 @@ def points_to_scene(points: list[SpecialPoint], style: PointStyle | None = None)
     return scene
 
 
-def grid_to_scene(grid_model: GridModel, style=None) -> Scene:
-    """Convert grid model to display scene."""
+def grid_to_scene(
+    grid_model: GridModel,
+    style: PolylineStyle | None = None,
+) -> Scene:
+    """Convert grid rows and columns into world-coordinate polylines."""
     if style is None:
         style = PolylineStyle()
 
@@ -93,7 +100,7 @@ def grid_to_scene(grid_model: GridModel, style=None) -> Scene:
 
 
 def tin_to_scene(tin_model: TinModel, style: PolylineStyle | None = None) -> Scene:
-    """Convert TIN model to display scene."""
+    """Convert unique TIN edges into world-coordinate polylines."""
     if style is None:
         style = PolylineStyle(char="*")
 
@@ -119,7 +126,7 @@ def contour_polylines_to_scene(
     polylines: list[ContourPolyline],
     style: PolylineStyle | None = None,
 ) -> Scene:
-    """Convert traced contour polylines to display scene polylines."""
+    """Convert traced contours into drawable world-coordinate polylines."""
     if style is None:
         style = PolylineStyle(char="=")
 
@@ -128,11 +135,7 @@ def contour_polylines_to_scene(
     for polyline in polylines:
         points = list(polyline.points)
 
-        if (
-            polyline.closed
-            and len(points) >= 2
-            and points[0] != points[-1]
-        ):
+        if polyline.closed and len(points) >= 2 and points[0] != points[-1]:
             points.append(points[0])
 
         drawable = DrawablePolyline(
@@ -148,7 +151,7 @@ def contour_labels_to_scene(
     polylines: list[ContourPolyline],
     style: TextStyle | None = None,
 ) -> Scene:
-    """Convert contour levels to text labels placed on each polyline."""
+    """Create one world-coordinate level label for each nonempty contour."""
     if style is None:
         style = TextStyle(color="#BAE6FD")
 
@@ -175,7 +178,7 @@ def topology_to_scene(
     arc_style: PolylineStyle | None = None,
     node_style: PointStyle | None = None,
 ) -> Scene:
-    """Convert topology nodes and arcs to a display scene."""
+    """Convert topology nodes and arcs into world-coordinate drawables."""
     if arc_style is None:
         arc_style = PolylineStyle(char="-")
 
@@ -183,10 +186,7 @@ def topology_to_scene(
         node_style = PointStyle(char="o")
 
     scene = Scene()
-    node_by_id = {
-        node.id: node
-        for node in topology.nodes
-    }
+    node_by_id = {node.id: node for node in topology.nodes}
 
     for arc in topology.arcs:
         start_node = node_by_id[arc.start_node]

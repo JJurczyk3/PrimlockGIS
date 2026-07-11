@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from polars.exceptions import PolarsError
+
 from primelock_gis.app.project_state import ProjectConfig, ProjectState
 from primelock_gis.core.algorithms.grid import (
     create_grid_model_directional,
@@ -24,14 +26,16 @@ def build_project_state(config: ProjectConfig) -> ProjectState:
     """Build all computed project models from configuration."""
     points = load_normalised_sample_points(config.dataset_path)
 
+    # Startup, dataset reloads, and grid setting changes all pass through this
+    # function so every computed model stays tied to the same ProjectConfig.
     if config.interpolation_method == "directional":
-        idw_grid = create_grid_model_directional(
+        grid = create_grid_model_directional(
             points,
             x_divisions=config.grid_x_divisions,
             y_divisions=config.grid_y_divisions,
         )
     else:
-        idw_grid = create_grid_model_idw(
+        grid = create_grid_model_idw(
             points,
             x_divisions=config.grid_x_divisions,
             y_divisions=config.grid_y_divisions,
@@ -40,7 +44,7 @@ def build_project_state(config: ProjectConfig) -> ProjectState:
     tin = build_tin_from_points(points)
     return ProjectState(
         points=points,
-        idw_grid=idw_grid,
+        grid=grid,
         tin=tin,
         config=config,
     )
@@ -53,7 +57,7 @@ def try_rebuild_project_state(
     """Build a replacement project without discarding the current one on error."""
     try:
         next_state = build_project_state(config)
-    except Exception as error:
+    except (OSError, PolarsError, ValueError) as error:
         return ProjectRebuildResult(
             project_state=current_state,
             success=False,

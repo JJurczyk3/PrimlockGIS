@@ -1,31 +1,44 @@
-"""Grid-based contour generation and tracing algorithms."""
+"""Contour extraction and tracing for regular grids and TIN surfaces."""
 
 import math
-from collections.abc import Hashable
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from primelock_gis.core.geometry import Point
 from primelock_gis.core.models.contour import (
+    ContourEdgeKey,
     ContourPolyline,
     ContourSegment,
     GridEdgeKey,
 )
 from primelock_gis.core.models.grid import GridModel
-from primelock_gis.core.models.tin import TinEdgeKey, TinModel, TinTriangle
-
+from primelock_gis.core.models.tin import TinEdgeKey, TinModel, TinTriangle, TinVertex
 
 EPS = 1e-9
+GridCrossing = tuple[str, GridEdgeKey, Point]
+BoundaryPredicate = Callable[[ContourEdgeKey], bool]
+
+
+@dataclass(frozen=True)
+class _GridEdgeSample:
+    """Geometry and endpoint values for one grid-cell edge."""
+
+    name: str
+    key: GridEdgeKey
+    start: Point
+    start_z: float
+    end: Point
+    end_z: float
 
 
 def grid_value_range(grid: GridModel) -> tuple[float, float]:
     """Return the minimum and maximum z values in a grid model."""
-    values = [value for row in grid.node_values for value in row]
-    return min(values), max(values)
+    return grid.value_range()
 
 
 def tin_value_range(tin: TinModel) -> tuple[float, float]:
     """Return the minimum and maximum z values in a TIN model."""
-    values = [vertex.z for vertex in tin.vertices]
-    return min(values), max(values)
+    return tin.value_range()
 
 
 def generate_contour_levels(
@@ -100,71 +113,9 @@ def contour_segments_for_cell(
     interval: float,
 ) -> list[ContourSegment]:
     """Generate raw contour segments for one grid cell."""
-    p00 = _grid_node_point(grid, row, col)
-    p10 = _grid_node_point(grid, row, col + 1)
-    p11 = _grid_node_point(grid, row + 1, col + 1)
-    p01 = _grid_node_point(grid, row + 1, col)
-
-    z00 = grid.node_value(row, col)
-    z10 = grid.node_value(row, col + 1)
-    z11 = grid.node_value(row + 1, col + 1)
-    z01 = grid.node_value(row + 1, col)
-
-    edge_specs = [
-        (
-            "bottom",
-            GridEdgeKey("horizontal", row, col),
-            p00,
-            z00,
-            p10,
-            z10,
-        ),
-        (
-            "right",
-            GridEdgeKey("vertical", row, col + 1),
-            p10,
-            z10,
-            p11,
-            z11,
-        ),
-        (
-            "top",
-            GridEdgeKey("horizontal", row + 1, col),
-            p01,
-            z01,
-            p11,
-            z11,
-        ),
-        (
-            "left",
-            GridEdgeKey("vertical", row, col),
-            p00,
-            z00,
-            p01,
-            z01,
-        ),
-    ]
-
-    crossings = []
-    crossing_by_name = {}
-
-    for name, edge_key, p1, z1, p2, z2 in edge_specs:
-        adjusted_z1 = adjust_level_singularity(z1, level, interval)
-        adjusted_z2 = adjust_level_singularity(z2, level, interval)
-
-        if not edge_crosses_level(adjusted_z1, adjusted_z2, level):
-            continue
-
-        crossing_point = interpolate_edge_crossing(
-            p1,
-            adjusted_z1,
-            p2,
-            adjusted_z2,
-            level,
-        )
-        crossing = (name, edge_key, crossing_point)
-        crossings.append(crossing)
-        crossing_by_name[name] = crossing
+    edge_samples = _grid_cell_edge_samples(grid, row, col)
+    crossings = _grid_crossings(edge_samples, level, interval)
+    crossing_by_name = {crossing[0]: crossing for crossing in crossings}
 
     if len(crossings) == 0:
         return []
@@ -173,7 +124,12 @@ def contour_segments_for_cell(
         return [_segment_from_crossings(level, crossings[0], crossings[1])]
 
     if len(crossings) == 4:
-        center_z = (z00 + z10 + z11 + z01) / 4
+        center_z = (
+            grid.node_value(row, col)
+            + grid.node_value(row, col + 1)
+            + grid.node_value(row + 1, col + 1)
+            + grid.node_value(row + 1, col)
+        ) / 4
 
         if center_z >= level:
             pairs = [
@@ -195,11 +151,66 @@ def contour_segments_for_cell(
             for start_name, end_name in pairs
         ]
 
-    # After singularity adjustment a regular square cell should have 0, 2, or
-    # 4 crossings. Other counts indicate a degenerate flat-edge case, so this
-    # first implementation leaves the cell untraced rather than inventing
-    # unstable topology.
+    # Other counts indicate a degenerate flat-edge case.
     return []
+
+
+def _grid_cell_edge_samples(
+    grid: GridModel,
+    row: int,
+    col: int,
+) -> list[_GridEdgeSample]:
+    p00 = _grid_node_point(grid, row, col)
+    p10 = _grid_node_point(grid, row, col + 1)
+    p11 = _grid_node_point(grid, row + 1, col + 1)
+    p01 = _grid_node_point(grid, row + 1, col)
+    z00 = grid.node_value(row, col)
+    z10 = grid.node_value(row, col + 1)
+    z11 = grid.node_value(row + 1, col + 1)
+    z01 = grid.node_value(row + 1, col)
+
+    return [
+        _GridEdgeSample(
+            "bottom", GridEdgeKey("horizontal", row, col), p00, z00, p10, z10
+        ),
+        _GridEdgeSample(
+            "right", GridEdgeKey("vertical", row, col + 1), p10, z10, p11, z11
+        ),
+        _GridEdgeSample(
+            "top", GridEdgeKey("horizontal", row + 1, col), p01, z01, p11, z11
+        ),
+        _GridEdgeSample("left", GridEdgeKey("vertical", row, col), p00, z00, p01, z01),
+    ]
+
+
+def _grid_crossings(
+    edge_samples: list[_GridEdgeSample],
+    level: float,
+    interval: float,
+) -> list[GridCrossing]:
+    crossings: list[GridCrossing] = []
+
+    for sample in edge_samples:
+        start_z = adjust_level_singularity(sample.start_z, level, interval)
+        end_z = adjust_level_singularity(sample.end_z, level, interval)
+        if not edge_crosses_level(start_z, end_z, level):
+            continue
+
+        crossings.append(
+            (
+                sample.name,
+                sample.key,
+                interpolate_edge_crossing(
+                    sample.start,
+                    start_z,
+                    sample.end,
+                    end_z,
+                    level,
+                ),
+            )
+        )
+
+    return crossings
 
 
 def contour_segments_from_grid(
@@ -233,7 +244,20 @@ def contour_segments_for_triangle(
     interval: float,
 ) -> list[ContourSegment]:
     """Generate raw contour segments for one TIN triangle."""
-    vertex_by_id = tin.vertex_by_id()
+    return _contour_segments_for_triangle(
+        triangle,
+        tin.vertex_by_id(),
+        level,
+        interval,
+    )
+
+
+def _contour_segments_for_triangle(
+    triangle: TinTriangle,
+    vertex_by_id: dict[int, TinVertex],
+    level: float,
+    interval: float,
+) -> list[ContourSegment]:
     crossings: list[tuple[TinEdgeKey, Point]] = []
 
     for edge_index in range(3):
@@ -286,13 +310,14 @@ def contour_segments_from_tin(
 ) -> list[ContourSegment]:
     """Generate raw contour segments for all triangles and levels in a TIN."""
     segments = []
+    vertex_by_id = tin.vertex_by_id()
 
     for level in levels:
         for triangle in tin.triangles:
             segments.extend(
-                contour_segments_for_triangle(
-                    tin,
+                _contour_segments_for_triangle(
                     triangle,
+                    vertex_by_id,
                     level,
                     interval,
                 )
@@ -316,18 +341,41 @@ def trace_contour_segments(
     grid: GridModel,
 ) -> list[ContourPolyline]:
     """Trace raw contour segments into ordered open and closed polylines."""
+    return _trace_segments(
+        segments,
+        is_boundary=lambda edge: (
+            isinstance(edge, GridEdgeKey) and is_boundary_edge(edge, grid)
+        ),
+    )
+
+
+def trace_tin_contour_segments(
+    segments: list[ContourSegment],
+    tin: TinModel,
+) -> list[ContourPolyline]:
+    """Trace raw TIN contour segments into ordered open and closed polylines."""
+    boundary_edges = _tin_boundary_edges(tin)
+    return _trace_segments(
+        segments,
+        is_boundary=lambda edge: edge in boundary_edges,
+    )
+
+
+def _trace_segments(
+    segments: list[ContourSegment],
+    is_boundary: BoundaryPredicate,
+) -> list[ContourPolyline]:
+    """Trace boundary-connected contours first, then closed loops."""
     adjacency = _build_segment_adjacency(segments)
     used_segments: set[int] = set()
-    polylines = []
+    polylines: list[ContourPolyline] = []
 
     for segment_index, segment in enumerate(segments):
         if segment_index in used_segments:
             continue
 
         boundary_edges = [
-            edge
-            for edge in (segment.start_edge, segment.end_edge)
-            if is_boundary_edge(edge, grid)
+            edge for edge in (segment.start_edge, segment.end_edge) if is_boundary(edge)
         ]
         if not boundary_edges:
             continue
@@ -339,7 +387,7 @@ def trace_contour_segments(
                 segments=segments,
                 adjacency=adjacency,
                 used_segments=used_segments,
-                grid=grid,
+                is_boundary=is_boundary,
                 trace_closed=False,
             )
         )
@@ -355,60 +403,7 @@ def trace_contour_segments(
                 segments=segments,
                 adjacency=adjacency,
                 used_segments=used_segments,
-                grid=grid,
-                trace_closed=True,
-            )
-        )
-
-    return polylines
-
-
-def trace_tin_contour_segments(
-    segments: list[ContourSegment],
-    tin: TinModel,
-) -> list[ContourPolyline]:
-    """Trace raw TIN contour segments into ordered open and closed polylines."""
-    boundary_edges = _tin_boundary_edges(tin)
-    adjacency = _build_segment_adjacency(segments)
-    used_segments: set[int] = set()
-    polylines = []
-
-    for segment_index, segment in enumerate(segments):
-        if segment_index in used_segments:
-            continue
-
-        segment_boundary_edges = [
-            edge
-            for edge in (segment.start_edge, segment.end_edge)
-            if edge in boundary_edges
-        ]
-        if not segment_boundary_edges:
-            continue
-
-        polylines.append(
-            _trace_tin_from_segment(
-                start_segment_index=segment_index,
-                start_edge=segment_boundary_edges[0],
-                segments=segments,
-                adjacency=adjacency,
-                used_segments=used_segments,
-                boundary_edges=boundary_edges,
-                trace_closed=False,
-            )
-        )
-
-    for segment_index, segment in enumerate(segments):
-        if segment_index in used_segments:
-            continue
-
-        polylines.append(
-            _trace_tin_from_segment(
-                start_segment_index=segment_index,
-                start_edge=segment.start_edge,
-                segments=segments,
-                adjacency=adjacency,
-                used_segments=used_segments,
-                boundary_edges=boundary_edges,
+                is_boundary=is_boundary,
                 trace_closed=True,
             )
         )
@@ -428,7 +423,11 @@ def _grid_node_point(grid: GridModel, row: int, col: int) -> Point:
     return Point(grid.node_x(col), grid.node_y(row))
 
 
-def _segment_from_crossings(level: float, start, end) -> ContourSegment:
+def _segment_from_crossings(
+    level: float,
+    start: GridCrossing,
+    end: GridCrossing,
+) -> ContourSegment:
     _, start_edge, start_point = start
     _, end_edge, end_point = end
 
@@ -443,8 +442,8 @@ def _segment_from_crossings(level: float, start, end) -> ContourSegment:
 
 def _build_segment_adjacency(
     segments: list[ContourSegment],
-) -> dict[Hashable, list[int]]:
-    adjacency: dict[Hashable, list[int]] = {}
+) -> dict[ContourEdgeKey, list[int]]:
+    adjacency: dict[ContourEdgeKey, list[int]] = {}
 
     for index, segment in enumerate(segments):
         adjacency.setdefault(segment.start_edge, []).append(index)
@@ -458,18 +457,18 @@ def _build_segment_adjacency(
 
 def _trace_from_segment(
     start_segment_index: int,
-    start_edge: Hashable,
+    start_edge: ContourEdgeKey,
     segments: list[ContourSegment],
-    adjacency: dict[Hashable, list[int]],
+    adjacency: dict[ContourEdgeKey, list[int]],
     used_segments: set[int],
-    grid: GridModel,
+    is_boundary: BoundaryPredicate,
     trace_closed: bool,
 ) -> ContourPolyline:
     start_segment = segments[start_segment_index]
     level = start_segment.level
     current_segment_index = start_segment_index
     current_edge = start_edge
-    points = []
+    points: list[Point] = []
     closed = False
 
     while True:
@@ -486,61 +485,7 @@ def _trace_from_segment(
             closed = True
             break
 
-        if not trace_closed and is_boundary_edge(next_edge, grid):
-            break
-
-        next_segment_index = _choose_continuation(
-            edge=next_edge,
-            level=level,
-            adjacency=adjacency,
-            segments=segments,
-            used_segments=used_segments,
-        )
-
-        if next_segment_index is None:
-            break
-
-        current_segment_index = next_segment_index
-        current_edge = next_edge
-
-    return ContourPolyline(
-        level=level,
-        points=points,
-        closed=closed,
-    )
-
-
-def _trace_tin_from_segment(
-    start_segment_index: int,
-    start_edge: Hashable,
-    segments: list[ContourSegment],
-    adjacency: dict[Hashable, list[int]],
-    used_segments: set[int],
-    boundary_edges: set[TinEdgeKey],
-    trace_closed: bool,
-) -> ContourPolyline:
-    start_segment = segments[start_segment_index]
-    level = start_segment.level
-    current_segment_index = start_segment_index
-    current_edge = start_edge
-    points = []
-    closed = False
-
-    while True:
-        segment = segments[current_segment_index]
-        start_point, end_point, next_edge = _orient_segment(segment, current_edge)
-
-        if not points:
-            points.append(start_point)
-
-        points.append(end_point)
-        used_segments.add(current_segment_index)
-
-        if trace_closed and next_edge == start_edge:
-            closed = True
-            break
-
-        if not trace_closed and next_edge in boundary_edges:
+        if not trace_closed and is_boundary(next_edge):
             break
 
         next_segment_index = _choose_continuation(
@@ -566,8 +511,8 @@ def _trace_tin_from_segment(
 
 def _orient_segment(
     segment: ContourSegment,
-    current_edge: Hashable,
-) -> tuple[Point, Point, Hashable]:
+    current_edge: ContourEdgeKey,
+) -> tuple[Point, Point, ContourEdgeKey]:
     if segment.start_edge == current_edge:
         return segment.start, segment.end, segment.end_edge
 
@@ -578,9 +523,9 @@ def _orient_segment(
 
 
 def _choose_continuation(
-    edge: Hashable,
+    edge: ContourEdgeKey,
     level: float,
-    adjacency: dict[Hashable, list[int]],
+    adjacency: dict[ContourEdgeKey, list[int]],
     segments: list[ContourSegment],
     used_segments: set[int],
 ) -> int | None:
@@ -609,11 +554,7 @@ def _tin_boundary_edges(tin: TinModel) -> set[TinEdgeKey]:
             edge = triangle.edge_key(edge_index)
             edge_counts[edge] = edge_counts.get(edge, 0) + 1
 
-    return {
-        edge
-        for edge, count in edge_counts.items()
-        if count == 1
-    }
+    return {edge for edge, count in edge_counts.items() if count == 1}
 
 
 def _clean_float(value: float) -> float:

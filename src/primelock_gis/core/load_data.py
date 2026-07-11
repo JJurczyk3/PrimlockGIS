@@ -1,25 +1,43 @@
 """Load and normalise GIS data from files."""
 
+from math import isfinite
 from pathlib import Path
+
 import polars as pl
+
 from primelock_gis.core.models.vector import SpecialPoint
+
+REQUIRED_POINT_COLUMNS = (
+    "No.",
+    "Data point name",
+    "x_coord",
+    "y_coord",
+    "z_coord",
+)
 
 
 def load_sample_points(file_path: Path) -> list[SpecialPoint]:
     """Load coordinate points from a CSV file."""
-    df = pl.read_csv(file_path)
-    df = clean_dataframe_column_names(df)
-    points = []
+    dataframe = clean_dataframe_column_names(pl.read_csv(file_path))
+    _validate_point_columns(dataframe)
 
-    for row in df.iter_rows(named=True):
-        point = SpecialPoint(
+    points = [
+        SpecialPoint(
             id=int(row["No."]),
-            name=row["Data point name"],
+            name=str(row["Data point name"]),
             x=float(row["x_coord"]),
             y=float(row["y_coord"]),
             z=float(row["z_coord"]),
         )
-        points.append(point)
+        for row in dataframe.iter_rows(named=True)
+    ]
+
+    for point in points:
+        if not all(isfinite(value) for value in (point.x, point.y, point.z)):
+            raise ValueError(
+                f"Point {point.id} has a non-finite coordinate or elevation"
+            )
+
     return points
 
 
@@ -36,10 +54,8 @@ def normalise_sample_points(points: list[SpecialPoint]) -> list[SpecialPoint]:
 
     min_x = min(point.x for point in points)
     min_y = min(point.y for point in points)
-    normalised_points = []
-
-    for point in points:
-        normalised_point = SpecialPoint(
+    return [
+        SpecialPoint(
             id=point.id,
             name=point.name,
             x=point.x - min_x,
@@ -47,15 +63,18 @@ def normalise_sample_points(points: list[SpecialPoint]) -> list[SpecialPoint]:
             z=point.z,
             outer_polygon=point.outer_polygon,
         )
-        normalised_points.append(normalised_point)
-    return normalised_points
+        for point in points
+    ]
 
 
 def clean_dataframe_column_names(df: pl.DataFrame) -> pl.DataFrame:
     """Remove extra spaces from CSV column names."""
-    clean_names = {}
+    return df.rename({column: column.strip() for column in df.columns})
 
-    for column in df.columns:
-        clean_names[column] = column.strip()
 
-    return df.rename(clean_names)
+def _validate_point_columns(dataframe: pl.DataFrame) -> None:
+    missing = [
+        column for column in REQUIRED_POINT_COLUMNS if column not in dataframe.columns
+    ]
+    if missing:
+        raise ValueError("CSV is missing required column(s): " + ", ".join(missing))

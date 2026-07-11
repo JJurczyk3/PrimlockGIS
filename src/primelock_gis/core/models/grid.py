@@ -1,10 +1,17 @@
 """Data models for grid generation."""
 
 from dataclasses import dataclass
+from math import isfinite
 
 
 @dataclass
 class GridModel:
+    """A regular elevation grid with divisions and stored boundary nodes.
+
+    A grid with N divisions stores N + 1 nodes on that axis. Both spatial
+    extents must be non-zero so interpolation within a cell is well-defined.
+    """
+
     x_min: float
     y_min: float
     x_max: float
@@ -14,6 +21,21 @@ class GridModel:
     node_values: list[list[float]]
 
     def __post_init__(self) -> None:
+        if not isinstance(self.x_divisions, int) or not isinstance(
+            self.y_divisions,
+            int,
+        ):
+            raise ValueError("Grid divisions must be integers")
+        if self.x_divisions < 1 or self.y_divisions < 1:
+            raise ValueError("Grid divisions must be positive")
+        if not all(
+            isfinite(value)
+            for value in (self.x_min, self.y_min, self.x_max, self.y_max)
+        ):
+            raise ValueError("Grid bounds must be finite")
+        if self.x_max <= self.x_min or self.y_max <= self.y_min:
+            raise ValueError("Grid bounds must have positive width and height")
+
         expected_rows = self.y_divisions + 1
         expected_cols = self.x_divisions + 1
 
@@ -23,21 +45,23 @@ class GridModel:
         for row in self.node_values:
             if len(row) != expected_cols:
                 raise ValueError("node_values column count does not match x_divisions")
+            if not all(isfinite(value) for value in row):
+                raise ValueError("Grid node values must be finite")
 
     @property
     def dx(self) -> float:
         return (self.x_max - self.x_min) / self.x_divisions
-    
+
     @property
     def dy(self) -> float:
         return (self.y_max - self.y_min) / self.y_divisions
-    
+
     def node_x(self, col: int) -> float:
         return self.x_min + col * self.dx
-    
+
     def node_y(self, row: int) -> float:
         return self.y_min + row * self.dy
-    
+
     def node_value(self, row: int, col: int) -> float:
         self._validate_node_indices(row, col)
         return self.node_values[row][col]
@@ -45,8 +69,9 @@ class GridModel:
     def set_node_value(self, row: int, col: int, value: float) -> None:
         """Set the z value at one grid node."""
         self._validate_node_indices(row, col)
+        if not isfinite(value):
+            raise ValueError("Grid node value must be finite")
         self.node_values[row][col] = value
-    
 
     def grid_intersection(self, row: int, col: int) -> tuple[float, float, float]:
         """Return x, y, z at the selected grid row and column."""

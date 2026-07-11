@@ -45,10 +45,8 @@ def build_topology_from_point_sequences(
 ) -> TopologyModel:
     """Build node/arc/polygon topology from point sequences.
 
-    This first topology pass creates nodes at polyline endpoints, at original
-    vertices, and at detected point intersections. Collinear overlapping segments
-    are not split yet; they are left as duplicate linework for a later cleanup
-    pass.
+    Nodes are created at vertices and detected intersections. Collinear overlaps
+    remain duplicate linework in this first topology pass.
     """
     if tolerance <= 0:
         raise ValueError("Topology tolerance must be positive")
@@ -63,6 +61,33 @@ def build_topology_from_point_sequences(
         tolerance,
     )
 
+    nodes, arcs, arc_ids_by_polyline = _build_topology_arcs(
+        polylines,
+        segments,
+        split_points_by_segment,
+        tolerance,
+    )
+    polygons = _build_polygon_candidates(
+        polylines,
+        arcs,
+        arc_ids_by_polyline,
+        tolerance,
+    )
+
+    return TopologyModel(
+        nodes=nodes,
+        arcs=arcs,
+        polygons=polygons,
+    )
+
+
+def _build_topology_arcs(
+    polylines: list[_PolylineInput],
+    segments: list[_SegmentInput],
+    split_points_by_segment: dict[int, list[Point]],
+    tolerance: float,
+) -> tuple[list[Node], list[Arc], list[list[int]]]:
+    """Create nodes and arcs from split line segments."""
     nodes: list[Node] = []
     arcs: list[Arc] = []
     arc_ids_by_polyline: list[list[int]] = [[] for _ in polylines]
@@ -90,18 +115,7 @@ def build_topology_from_point_sequences(
             _attach_arc_to_node(nodes[start_node_id], arc.id)
             _attach_arc_to_node(nodes[end_node_id], arc.id)
 
-    polygons = _build_polygon_candidates(
-        polylines,
-        arcs,
-        arc_ids_by_polyline,
-        tolerance,
-    )
-
-    return TopologyModel(
-        nodes=nodes,
-        arcs=arcs,
-        polygons=polygons,
-    )
+    return nodes, arcs, arc_ids_by_polyline
 
 
 def _prepare_polyline_inputs(
@@ -176,8 +190,7 @@ def _initial_split_points(
     segments: list[_SegmentInput],
 ) -> dict[int, list[Point]]:
     return {
-        index: [segment.start, segment.end]
-        for index, segment in enumerate(segments)
+        index: [segment.start, segment.end] for index, segment in enumerate(segments)
     }
 
 
@@ -253,8 +266,7 @@ def _segment_parameter(segment: _SegmentInput, point: Point) -> float:
         return 0.0
 
     return (
-        (point.x - segment.start.x) * dx
-        + (point.y - segment.start.y) * dy
+        (point.x - segment.start.x) * dx + (point.y - segment.start.y) * dy
     ) / length_squared
 
 

@@ -1,16 +1,11 @@
-"""Base renderer interface for Primelock GIS.
-
-This module describes HOW renderers draw the drawable objects defined
-in scene.py. Concrete renderers, such as terminal or Tkinter renderers,
-will implement these methods.
-"""
+"""Interface for rendering backend-independent GIS scenes."""
 
 from .scene import (
-    Scene,
-    DrawableTerrain,
-    DrawablePolyline,
     DrawablePoint,
+    DrawablePolyline,
+    DrawableTerrain,
     DrawableText,
+    Scene,
 )
 
 
